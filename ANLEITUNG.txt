@@ -1,0 +1,11 @@
+Befund Studio als App auf dem Smartphone
+
+1. Den ganzen Ordner (alle Dateien, nicht nur index.html) auf einen Webspace laden, z. B. Netlify, Cloudflare Pages oder GitHub Pages (alle kostenlos).
+2. Die entstandene Adresse (https://...) auf dem Handy im Browser öffnen: iPhone Safari, Android Chrome.
+3. Installieren:
+   - iPhone: Teilen-Symbol, dann "Zum Home-Bildschirm".
+   - Android: Menü (drei Punkte), dann "App installieren" oder "Zum Startbildschirm hinzufügen".
+4. Danach startet die App wie jede andere und funktioniert auch ohne Internet.
+
+Daten: Befunde werden nur auf dem Gerät im Browser-Speicher abgelegt, nichts wird an einen Server gesendet. Beim Löschen der Browserdaten oder der App sind sie weg. Regelmäßig "Sicherung" nutzen.
+PDF: "Drucken / PDF" öffnet den Druckdialog. Dort "Als PDF speichern" (Android) bzw. Teilen > "In Dateien sichern" (iPhone) wählen.

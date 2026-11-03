@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f6b73">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Befund">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Befund Studio</title>
+<style>
+/* Layout: Seitenleiste mit Modulwahl links, Befundbogen als eine Spalte rechts. Handy: Leiste oben, horizontal scrollbar. */
+:root{
+  --bg:#f3f5f4; --surface:#ffffff; --surface2:#eaeff0; --fg:#18242a; --muted:#5b6b72;
+  --line:#d3dcdf; --accent:#0f6b73; --accent-fg:#ffffff; --accent-soft:#d9eeee;
+  --warn:#b4531a; --warn-soft:#fbe9dd; --ok:#2b7a4b; --danger:#b3261e; --danger-soft:#fbe3e1;
+  --f-display:'Fraunces',Georgia,serif; --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif; --f-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f181c; --surface:#16232a; --surface2:#1e2f37; --fg:#e4edf0; --muted:#97a9b0;
+  --line:#2c4049; --accent:#5ec3c9; --accent-fg:#0b1a1d; --accent-soft:#17383d;
+  --warn:#f0a06a; --warn-soft:#3a2415; --ok:#6fd09a; --danger:#ff8a80; --danger-soft:#3b1b19; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f181c; --surface:#16232a; --surface2:#1e2f37; --fg:#e4edf0; --muted:#97a9b0;
+  --line:#2c4049; --accent:#5ec3c9; --accent-fg:#0b1a1d; --accent-soft:#17383d;
+  --warn:#f0a06a; --warn-soft:#3a2415; --ok:#6fd09a; --danger:#ff8a80; --danger-soft:#3b1b19; color-scheme:dark}
+[hidden]{display:none!important}
+:root{color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;margin:0;text-wrap:balance}
+h2{font-size:1.45rem}h3{font-size:1.05rem;font-family:var(--f-body);font-weight:600}
+.app{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:260px minmax(0,1fr);gap:28px;align-items:start}
+header.top{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:20px 0 4px}
+header.top h1{font-size:1.7rem}
+header.top small{display:block;color:var(--muted);font:400 .8rem var(--f-body);margin-top:2px}
+.tools{display:flex;flex-wrap:wrap;gap:8px}
+nav.side{position:sticky;top:12px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.navgrp h4{margin:0 0 6px;font:600 .72rem var(--f-body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.navgrp a{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;color:var(--fg);text-decoration:none;font-size:.92rem}
+.navgrp a:hover{background:var(--surface2)}
+.fixed-tag{font:500 .68rem var(--f-mono);color:var(--muted);margin-left:auto}
+.mod{min-width:0;display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer;margin-bottom:6px;font-size:.92rem;user-select:none}
+.mod input{accent-color:var(--accent);width:16px;height:16px;margin:0}
+.mod:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.mod:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+main{display:flex;flex-direction:column;gap:22px;min-width:0}
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px;scroll-margin-top:12px;min-width:0}
+section.card>header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+section.card>header .sub{color:var(--muted);font-size:.85rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.grid.w2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f>label,.lbl{font:500 .78rem var(--f-body);color:var(--muted);letter-spacing:.02em}
+input[type=text],input[type=date],input[type=number],select,textarea{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:0}
+textarea{resize:vertical;min-height:70px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+.sub-h{margin:22px 0 10px;display:flex;align-items:center;gap:10px}
+.sub-h:first-of-type{margin-top:0}
+.hint{color:var(--muted);font-size:.83rem;margin:0 0 10px}
+.btn{font:500 .88rem var(--f-body);padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--surface2)}
+.btn.pri{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.sm{padding:4px 10px;font-size:.8rem}
+.btn.on{background:var(--accent-soft);border-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;font-size:.84rem;cursor:pointer;background:var(--bg);user-select:none}
+.chip input{accent-color:var(--accent);margin:0}
+.chip:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
+.chips.red .chip:has(input:checked){background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
+.chips.yellow .chip:has(input:checked){background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th{font:600 .72rem var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px;background:var(--surface2);white-space:nowrap}
+td{padding:4px;border-top:1px solid var(--line);vertical-align:middle}
+td input,td select{padding:5px 7px;min-width:70px}
+td.nm{padding:4px 10px;white-space:nowrap;font-weight:500}
+td.ref{font:400 .78rem var(--f-mono);color:var(--muted);white-space:nowrap;padding:4px 8px}
+.num{font-variant-numeric:tabular-nums}
+.flag{border-left:3px solid var(--danger);background:var(--danger-soft);padding:8px 12px;border-radius:0 6px 6px 0;font-size:.88rem;margin-bottom:10px}
+.banner{background:var(--warn-soft);border:1px solid var(--warn);color:var(--fg);border-radius:8px;padding:10px 14px;font-size:.85rem}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.bodybox{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px;text-align:center}
+.bodybox canvas{width:100%;max-width:300px;height:auto;touch-action:none;cursor:crosshair;display:block;margin:0 auto}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.posture-wrap{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:8px;overflow:auto}
+.posture-wrap canvas{display:block;max-width:100%;touch-action:none;margin:0 auto}
+.res{font:400 .85rem var(--f-mono);display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px 18px;margin-top:12px}
+.res div{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.res b{font-weight:500}
+.res .bad{color:var(--warn)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:.88rem;z-index:50}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px;z-index:40}
+.modal>div{background:var(--surface);border-radius:10px;max-width:760px;width:100%;max-height:88vh;display:flex;flex-direction:column;gap:12px;padding:20px}
+.modal textarea{flex:1;min-height:320px;font:400 .82rem/1.45 var(--f-mono)}
+.lrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.lrow .hint{margin:0}
+.modal>div{overflow:auto}
+.pv,.pv-extra,.print-head,.print-only{display:none}
+@media (max-width:820px){
+  .app{grid-template-columns:minmax(0,1fr);gap:16px}
+  nav.side{position:static}
+  .navgrp.mods{display:block}
+  section.card{padding:16px}
+}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s}}
+@media print{
+  :root,:root[data-theme]{--bg:#fff;--surface:#fff;--surface2:#eef2f3;--fg:#000;--muted:#3d4a50;--line:#b9c3c7;--accent:#0f6b73;--accent-soft:#e2f1f1;--warn:#b4531a;--warn-soft:#fbe9dd;--danger:#b3261e;--danger-soft:#fbe3e1;color-scheme:light}
+  body{background:#fff;color:#000;padding:0;font-size:10.5pt;line-height:1.4}
+  header.top,nav.side,#modal-root,.toast,button,.hint,.banner,input[type=file],#bc-types,#po-views,#po-list,.noprint,#po-res,.tools{display:none!important}
+  .app{display:block;max-width:none}
+  main{gap:12pt}
+  section.card{border:none;border-radius:0;padding:0 0 8pt;break-inside:auto}
+  section.card>header{break-after:avoid;margin-bottom:8pt;padding-bottom:4pt;border-bottom:1.5pt solid #000}
+  section.card>header h2{font-size:14pt}
+  .sub-h{break-after:avoid;margin:10pt 0 5pt}
+  .sub-h h3{font-size:11pt;border-bottom:.5pt solid var(--line);padding-bottom:2pt;width:100%}
+  .grid,.grid.w2{grid-template-columns:repeat(2,minmax(0,1fr));gap:6pt 14pt}
+  .f{break-inside:avoid}
+  .f>label,.lbl{font-size:8pt}
+  .pr-hide,.pr-empty{display:none!important}
+  .pv{display:block;white-space:pre-wrap;word-break:break-word;font-size:10.5pt;border-bottom:.5pt dotted var(--line);padding:1pt 0}
+  td .pv{border:0}
+  .pv-extra,.print-only{display:block;font:9pt/1.5 var(--f-mono);white-space:pre-wrap}
+  .print-head{display:block;border-bottom:2pt solid #000;padding-bottom:6pt;margin-bottom:12pt}
+  .print-head h1{font-size:18pt}
+  .print-head div{font-size:10pt;margin-top:3pt}
+  .tbl{overflow:visible;border:.5pt solid var(--line)}
+  table{font-size:9pt}tr{break-inside:avoid}th{background:#eef2f3!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  td{padding:2pt 4pt}
+  .chip{border:.5pt solid var(--line);background:#fff;padding:1pt 7pt;font-size:9pt}
+  .chip input{display:none}
+  .charts{grid-template-columns:repeat(2,1fr);break-inside:avoid}
+  .bodybox{border:.5pt solid var(--line);background:#fff}
+  .bodybox canvas{max-width:170pt}
+  .posture-wrap{border:.5pt solid var(--line);background:#fff;break-inside:avoid}
+  .posture-wrap canvas{max-height:320pt;width:auto!important;max-width:100%}
+  .res{font-size:9pt}
+  .flag{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head><body>
+<script>window.__PWA=true</script>
+<div class="app">
+  <div class="print-head" id="print-head"></div>
+  <header class="top">
+    <div>
+      <h1>Befund Studio</h1>
+      <small>Physiotherapeutischer Befund nach Maitland-Konzept · Prototyp, nur mit Übungsdaten verwenden</small>
+    </div>
+    <div class="tools">
+      <button class="btn" id="b-new" type="button">Neuer Befund</button>
+      <button class="btn" id="b-lib" type="button">Gespeicherte Befunde</button>
+      <button class="btn" id="b-backup" type="button">Sicherung</button>
+      <button class="btn" id="b-export" type="button">Als Text</button>
+      <button class="btn pri" id="b-print" type="button">Drucken / PDF</button>
+    </div>
+  </header>
+  <nav class="side" id="nav" aria-label="Bereiche"></nav>
+  <main id="main"></main>
+</div>
+<div id="modal-root"></div>
+<script>
+/* ---------- Kern ---------- */
+const KEY='befund-studio-v1';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fresh=()=>({f:{},mods:{ortho:true},bc:{front:[],back:[]},rest:false,pos:{}});
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
+if(!S||!S.f)S=fresh();
+S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};
+const LIB='befund-studio-lib-v1';
+let LIGHT=false;const LV={'--surface2':'#eaeff0','--muted':'#5b6b72','--fg':'#18242a','--accent':'#0f6b73','--warn':'#b4531a'};
+const cssv=n=>LIGHT?LV[n]:getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let _t;
+function libGet(){try{return JSON.parse(localStorage.getItem(LIB)||'{}')||{}}catch(e){return {}}}
+function libSync(){try{const lib=libGet();lib[S.id]={t:Date.now(),name:(S.f['b.pat']||'Ohne Namen').trim(),dat:S.f['b.datum']||'',s:S};localStorage.setItem(LIB,JSON.stringify(lib))}catch(e){}}
+function saveNow(){clearTimeout(_t);if(!S.id&&S.f['b.pat'])S.id='b'+Date.now().toString(36);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(S.id)libSync()}
+function save(){clearTimeout(_t);_t=setTimeout(saveNow,300)}
+addEventListener('pagehide',()=>saveNow());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
+const hooks=[];
+
+/* Feld-Helfer: erzeugen HTML, Werte hängen an S.f[Schlüssel] */
+const T=(k,l,t='text',ph='')=>`<div class="f"><label for="i-${k}">${l}</label><input id="i-${k}" type="${t}" data-k="${k}" placeholder="${esc(ph)}" autocomplete="off"></div>`;
+const A=(k,l,ph='',rows=3)=>`<div class="f"><label for="i-${k}">${l}</label><textarea id="i-${k}" rows="${rows}" data-k="${k}" placeholder="${esc(ph)}"></textarea></div>`;
+const SEL=(k,l,o)=>`<div class="f"><label for="i-${k}">${l}</label><select id="i-${k}" data-k="${k}"><option value=""></option>${o.map(x=>`<option>${esc(x)}</option>`).join('')}</select></div>`;
+const CH=(k,l)=>`<label class="chip"><input type="checkbox" data-k="${k}">${l}</label>`;
+const CHS=(title,cls,arr,pre)=>`<div class="chips ${cls||''}" data-title="${esc(title)}">${arr.map((x,i)=>CH(pre+i,x)).join('')}</div>`;
+const SH=(t,extra='')=>`<div class="sub-h"><h3>${t}</h3>${extra}</div>`;
+/* Zelle in Tabellenzeile */
+const TI=(k,t='text',ph='')=>`<td><input type="${t}" data-k="${k}" aria-label="${esc(k)}" placeholder="${esc(ph)}"></td>`;
+const TS=(k,o)=>`<td><select data-k="${k}" aria-label="${esc(k)}"><option value=""></option>${o.map(x=>`<option>${esc(x)}</option>`).join('')}</select></td>`;
+const TBL=(heads,rows)=>`<div class="tbl"><table><thead><tr>${heads.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+
+function bind(root=document){
+  $$('[data-k]',root).forEach(el=>{
+    const v=S.f[el.dataset.k];
+    if(el.type==='checkbox')el.checked=!!v;else if(v!=null)el.value=v;
+  });
+}
+document.addEventListener('input',e=>{
+  const el=e.target;if(!el.dataset||!el.dataset.k)return;
+  S.f[el.dataset.k]=el.type==='checkbox'?el.checked:el.value;
+  save();hooks.forEach(h=>h(el.dataset.k));
+});
+
+function toast(msg){
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;t.setAttribute('role','status');
+  document.body.appendChild(t);setTimeout(()=>t.remove(),2200);
+}
+
+/* ---------- Bereiche registrieren ---------- */
+const SECS=[];
+const reg=(id,name,fixed,sub,html,init)=>SECS.push({id,name,fixed,sub,html,init});
+
+/* ---------- Dialog ---------- */
+function modal(title,body,buttons){
+  const root=$('#modal-root');
+  root.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div><h2>${title}</h2>${body}<div class="tools" id="m-btns"></div></div></div>`;
+  const box=$('#m-btns');
+  buttons.concat([{l:'Schließen',f:()=>{}}]).forEach(b=>{
+    const el=document.createElement('button');el.type='button';el.className='btn'+(b.pri?' pri':'');el.textContent=b.l;
+    el.onclick=()=>{const keep=b.f();if(keep!==true)root.innerHTML=''};box.appendChild(el);
+  });
+  const bg=$('.modal',root);bg.addEventListener('mousedown',e=>{if(e.target===bg)root.innerHTML=''});
+}
+function copyText(txt,ta){
+  const fb=()=>{ta.focus();ta.select();toast('Text markiert, mit Strg+C kopieren')};
+  try{navigator.clipboard.writeText(txt).then(()=>toast('Kopiert'),fb)}catch(e){fb()}
+}
+
+/* ---------- Text-Export: liest sichtbare Bereiche generisch aus ---------- */
+function val(el){
+  if(el.type==='checkbox')return el.checked?'ja':'';
+  return (el.value||'').trim();
+}
+function dumpSection(sec){
+  let out=[];
+  const walk=(root)=>{
+    [...root.children].forEach(ch=>{
+      if(ch.hidden)return;
+      if(ch.matches('.f')){const el=$('[data-k]',ch);if(el&&val(el))out.push(`${$('label',ch).textContent}: ${val(el)}`)}
+      else if(ch.matches('.chips[data-title]')){const on=$$('.chip',ch).filter(c=>$('input',c).checked).map(c=>c.textContent.trim());if(on.length)out.push(`${ch.dataset.title}: ${on.join(', ')}`)}
+      else if(ch.matches('.tbl')){
+        const heads=$$('th',ch).map(h=>h.textContent.trim());
+        $$('tbody tr',ch).forEach(tr=>{
+          if(tr.hidden)return;
+          if(!$$('[data-k]',tr).some(el=>val(el)))return;
+          const cells=[...tr.children].map((td,i)=>{const el=$('[data-k]',td);const v=el?val(el):td.textContent.trim();return v?(i?`${heads[i]} ${v}`:v):''});
+          if(cells.slice(1).some(Boolean))out.push('  • '+cells.filter(Boolean).join(' · '));
+        });
+      }
+      else if(ch.matches('.sub-h')){out.push('\n'+$('h3',ch).textContent.trim().toUpperCase())}
+      else if(ch.matches('.res')){if(ch.id!=='po-res')$$('div',ch).forEach(d=>{const sp=$('span',d),b=$('b',d);if(sp&&b&&b.textContent.trim()!=='–')out.push('  '+sp.textContent+': '+b.textContent)})}
+      else if(ch.children.length)walk(ch);
+    });
+  };
+  walk($('.body',sec));
+  return out.filter((l,i)=>!(l.startsWith('\n')&&(i+1>=out.length||out[i+1].startsWith('\n'))));
+}
+function buildText(){
+  const L=['BEFUND · '+new Date().toLocaleDateString('de-AT'),''];
+  SECS.forEach(s=>{
+    const el=$('#sec-'+s.id);if(!el||el.hidden)return;
+    const lines=dumpSection(el);
+    if(s.extra)lines.push(...s.extra());
+    if(lines.length){L.push('=== '+s.name.toUpperCase()+' ===',...lines,'')}
+  });
+  return L.join('\n');
+}
+/* ---------- Basisdaten (immer) ---------- */
+reg('basis','Basisdaten',true,'immer enthalten',`
+<div class="banner" style="margin-bottom:14px">Die Daten bleiben nur auf diesem Gerät. Vor dem Einsatz mit echten Patientendaten Datenschutz und Gerätesicherung (Sperrcode, Verschlüsselung) klären.</div>
+<div class="grid">
+${T('b.datum','Datum','date')}${T('b.pat','Patient/in (Kürzel oder Übungsname)')}${T('b.geb','Geburtsdatum','date')}
+${SEL('b.sex','Geschlecht',['weiblich','männlich','divers'])}${T('b.beruf','Beruf / Arbeitsplatz')}${T('b.sport','Freizeit / Sport')}
+${SEL('b.hand','Händigkeit',['rechts','links','beidhändig'])}${T('b.gr','Größe (cm)','number')}${T('b.gew','Gewicht (kg)','number')}
+${T('b.thera','Therapeut/in')}${T('b.zuw','Zuweisung durch')}${T('b.dx','Medizinische Diagnose')}
+</div>
+<div class="chips" style="margin-top:14px" data-title="Organisatorisches">${CH('b.einw','Einwilligung zur Dokumentation liegt vor')}${CH('b.erst','Erstbefund')}${CH('b.folge','Folgebefund')}</div>`);
+
+/* ---------- Bodychart ---------- */
+const BC_TYPES=[['Schmerz','#d64545'],['Kribbeln','#3b7dd8'],['Taubheit','#2b9a5f'],['Brennen','#e08a1e'],['Sonstiges','#8a5bc7']];
+let bcType=0,bcDown=null;
+function drawBody(cv,side){
+  const c=cv.getContext('2d');
+  const fill=cssv('--surface2').trim()||'#eee',ln=cssv('--muted').trim()||'#666',fg=cssv('--fg').trim()||'#000';
+  c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,cv.width,cv.height);c.setTransform(2,0,0,2,0,0);
+  c.lineJoin='round';c.lineCap='round';c.setLineDash([]);
+  const both=fn=>{fn();c.save();c.translate(300,0);c.scale(-1,1);fn();c.restore()};
+  const body=d=>{const p=new Path2D(d);c.fillStyle=fill;c.strokeStyle=ln;c.lineWidth=1.6;c.fill(p);c.stroke(p)};
+  const det=(d,a)=>{c.save();c.globalAlpha=a||.6;c.strokeStyle=ln;c.lineWidth=1.1;c.stroke(new Path2D(d));c.restore()};
+  const finger=(x1,y1,x2,y2)=>{c.lineWidth=9;c.strokeStyle=ln;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();c.lineWidth=6;c.strokeStyle=fill;c.stroke()};
+  const front=side==='front';
+  /* Beine */
+  both(()=>{
+    body('M152 322 C156 360 156 400 160 440 C160 452 160 462 162 470 C164 500 166 530 168 560 L170 584 L185 584 L188 562 C192 540 194 510 192 480 C190 470 190 460 192 448 C200 410 210 360 204 308');
+    body(front?'M169 582 L186 582 C190 594 196 604 198 614 C198 624 190 628 178 628 C168 628 164 622 164 612 C164 600 167 592 169 582':'M169 582 L186 582 C189 594 191 606 189 617 C186 627 171 627 167 617 C165 606 166 594 169 582');
+    if(front){[[169,624,5],[176,627,4.2],[182,627,4],[188,625,3.6],[194,621,3.2]].forEach(t=>{c.beginPath();c.ellipse(t[0],t[1],t[2],t[2]*.9,0,0,7);c.fillStyle=fill;c.fill();c.strokeStyle=ln;c.lineWidth=1.2;c.stroke()})}
+  });
+  /* Rumpf */
+  both(()=>body('M150 90 L162 88 C170 96 188 100 204 104 L208 114 L200 150 C198 190 196 215 192 240 C190 262 198 284 204 308 L150 322'));
+  /* Arme und Hände */
+  both(()=>{
+    body('M204 104 C216 106 224 118 224 134 C227 170 231 190 229 208 C233 240 241 266 247 288 L232 286 C224 262 218 240 214 216 C210 190 206 170 200 150');
+    body('M232 285 L247 289 C253 299 255 308 253 316 L234 315 C232 304 232 294 232 285');
+    finger(236,314,236,335);finger(241,315,242,347);finger(246,316,248,353);finger(251,314,254,346);finger(253,299,265,323);
+  });
+  /* Hals und Kopf */
+  both(()=>body('M150 70 L138 70 L137 92 L150 92'));
+  body('M126 46 C126 24 138 14 150 14 C162 14 174 24 174 46 C174 64 164 78 150 78 C136 78 126 64 126 46');
+  both(()=>{body('M126 44 C120 42 119 54 126 58')});
+  c.fillStyle=fill;
+  if(front){c.fillStyle=ln;[[142,44],[158,44]].forEach(e=>{c.beginPath();c.arc(e[0],e[1],1.6,0,7);c.fill()});det('M150 46 L148 56 L152 56');det('M143 66 C148 68 152 68 157 66')}
+  
+  /* Details */
+  if(front){
+    both(()=>{det('M152 100 C170 100 188 104 202 108');det('M156 150 C172 160 190 156 198 146');det('M152 200 C170 204 184 200 192 194',.35);ell(176,462,9,12)});
+    c.beginPath();c.ellipse(150,238,2.2,3,0,0,7);c.stroke();det('M150 108 L150 200',.35);
+  }else{
+    both(()=>{det('M158 118 L197 112 M158 118 C157 134 158 150 163 162 C175 158 185 150 190 140 C192 128 195 120 197 112');det('M152 322 C170 332 198 328 204 308');det('M164 468 C170 472 182 472 190 468');det('M174 560 L176 584')});
+    c.save();c.setLineDash([4,4]);det('M150 92 L150 300',.7);c.restore();det('M150 300 L150 322');
+  }
+  function ell(x,y,rx,ry){c.save();c.globalAlpha=.55;c.strokeStyle=ln;c.lineWidth=1.1;c.beginPath();c.ellipse(x,y,rx,ry,0,0,7);c.stroke();c.restore()}
+  c.fillStyle=fg;c.font='600 13px sans-serif';c.textAlign='center';
+  const rl=front?['R','L']:['L','R'];c.fillText(rl[0],24,20);c.fillText(rl[1],276,20);
+  S.bc[side].forEach(s=>{
+    c.strokeStyle=BC_TYPES[s.t][1];c.globalAlpha=.5;c.lineWidth=14;c.lineCap='round';c.lineJoin='round';c.beginPath();
+    s.p.forEach((q,i)=>i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]));if(s.p.length===1)c.lineTo(s.p[0][0]+.1,s.p[0][1]);c.stroke();c.globalAlpha=1;
+  });
+  const seen={};
+  S.bc[side].forEach(s=>{if(seen[s.n])return;seen[s.n]=1;const [x,y]=s.p[0];
+    c.fillStyle='#18242a';c.beginPath();c.arc(x+12,y-12,9,0,7);c.fill();c.fillStyle='#fff';c.font='600 11px sans-serif';c.fillText(s.n,x+12,y-8)});
+}
+function bcRedraw(){$$('canvas[data-bc]').forEach(cv=>drawBody(cv,cv.dataset.bc))}
+function bcInit(){
+  $$('canvas[data-bc]').forEach(cv=>{
+    const side=cv.dataset.bc;
+    const pt=e=>{const r=cv.getBoundingClientRect();return [Math.round((e.clientX-r.left)*300/r.width),Math.round((e.clientY-r.top)*630/r.height)]};
+    cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);S.rest=false;const st={t:bcType,n:S.bcn||1,p:[pt(e)],_o:(S._o=(S._o||0)+1)};S.bc[side].push(st);bcDown=st;bcRedraw()});
+    cv.addEventListener('pointermove',e=>{if(bcDown&&S.bc[side].includes(bcDown)){bcDown.p.push(pt(e));bcRedraw()}});
+    const up=()=>{if(bcDown){bcDown=null;save()}};
+    cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  });
+  const area=()=>{$('#bc-area').textContent=S.bcn||1};
+  $('#bc-types').innerHTML=BC_TYPES.map((t,i)=>`<button type="button" class="btn sm${i===bcType?' on':''}" data-t="${i}"><span class="sw" style="background:${t[1]}"></span> ${t[0]}</button>`).join('');
+  $('#bc-types').onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;bcType=+b.dataset.t;$$('#bc-types .btn').forEach(x=>x.classList.toggle('on',x===b))};
+  $('#bc-next').onclick=()=>{S.bcn=Math.min((S.bcn||1)+1,9);area();save()};
+  $('#bc-undo').onclick=()=>{
+    let best=null;['front','back'].forEach(s=>S.bc[s].forEach(x=>{if(!best||(x._o||0)>=(best.x._o||0))best={s,x}}));
+    if(best){S.bc[best.s].splice(S.bc[best.s].indexOf(best.x),1);bcRedraw();save()}};
+  $('#bc-clear').onclick=()=>{S.bc={front:[],back:[]};S.bcn=1;area();bcRedraw();save()};
+  area();bcRedraw();
+}
+/* ---------- Anamnese c/o (immer) ---------- */
+const RED=['Fraktur-Hinweis (Sturz aus Höhe, Unfall, Osteoporose, Steroide)','Karzinom in der Vorgeschichte','Konstante, progressive, nicht-mechanische Schmerzen','Fieber, Schwitzen, Schüttelfrost','Starker Gewichtsverlust','Ruhe-, Nacht- oder Thoraxschmerz','Infektion / Immunschwäche / Drogenmissbrauch','Reithosenanästhesie, Blasen- oder Darmstörung (Cauda equina)','Rückenmarkszeichen (Gangunsicherheit, Schwäche, Gefühlsstörung)','Schwere neurologische Zeichen'];
+const YELLOW=['Attitude (Einstellung, Überzeugungen)','Behaviours (Vermeidung, passives Coping)','Compensation (Entschädigung, Rente)','Diagnosis (Fehlinformation, Krankheitsfixierung)','Emotion (Angst, Depression, Stress)','Family (Überfürsorge, fehlende Unterstützung)','Work (Unzufriedenheit, Belastung)'];
+const rowsBC=[1,2,3,4,5,6].map(n=>`<tr><td class="nm num">${n}</td>${TI('bc.'+n+'.loc','text','Lokalisation')}${TS('bc.'+n+'.q',['stechend','dumpf','ziehend','brennend','drückend','kribbelnd','taub','krampfartig'])}${TI('bc.'+n+'.vas','number','0–10')}${TS('bc.'+n+'.v',['konstant','intermittierend'])}${TS('bc.'+n+'.d',['tief','oberflächlich'])}${TI('bc.'+n+'.z','text','Zusammenhang mit Nr.')}</tr>`);
+
+reg('anamnese','Anamnese (c/o)',true,'immer enthalten',`
+${SH('1 · Hauptproblem')}
+<p class="hint">„Was ist Ihr Hauptproblem? Was führt Sie zu mir? Was schränkt Ihren Alltag ein?“</p>
+<div class="grid w2">${A('a.haupt','Hauptproblem (Patientensicht)')}${A('a.alltag','Aktivitäts- und Partizipationseinschränkung')}${A('a.ziel','Ziele und Erwartungen des Patienten')}</div>
+
+${SH('2 · Bodychart')}
+<p class="hint">Symptombereiche einzeichnen (Maus oder Finger). Pro Bereich eine Nummer vergeben, danach „Nächster Bereich“. Betroffene Bereiche unten in der Tabelle qualifizieren.</p>
+<div class="legend" id="bc-types"></div>
+<div class="tools" style="margin-bottom:10px">
+  <span class="lbl" style="align-self:center">Aktiver Bereich: <b id="bc-area">1</b></span>
+  <button type="button" class="btn sm" id="bc-next">Nächster Bereich</button>
+  <button type="button" class="btn sm" id="bc-undo">Rückgängig</button>
+  <button type="button" class="btn sm" id="bc-clear">Alles löschen</button>
+</div>
+<div class="charts"><div class="bodybox"><div class="lbl">Vorderseite</div><canvas data-bc="front" width="600" height="1260" aria-label="Bodychart Vorderseite"></canvas></div><div class="bodybox"><div class="lbl">Rückseite</div><canvas data-bc="back" width="600" height="1260" aria-label="Bodychart Rückseite"></canvas></div></div>
+<div class="print-only" id="bc-leg">Farben: rot = Schmerz, blau = Kribbeln, grün = Taubheit, orange = Brennen, violett = Sonstiges</div>
+<div class="chips" style="margin:12px 0" data-title="Bodychart-Hinweis">${CH('bc.rest','Alle nicht eingezeichneten Bereiche beschwerdefrei')}</div>
+${TBL(['Nr','Lokalisation','Qualität','Stärke (VAS)','Verlauf','Tiefe','Zusammenhang'],rowsBC)}
+${SH('Symptome für Gefahrensituationen')}
+${CHS('Abgefragte Symptome','red',['Pins and needles','Blasen- / Darmfunktion gestört','Gangstörung','Husten / Niesen verstärkt','Kopfschmerzen','Schwindel'],'bc.rf')}
+${A('a.bcnotes','Später ergänzen (frühere Beschwerden, Operationen, neue Symptome im Verlauf)','',2)}
+
+${SH('3 · Verhalten der Symptome')}
+<div class="grid w2">${A('a.schl','Verstärkend: Aktivitäten und Haltungen („Was macht es schlimmer?“)')}${A('a.bess','Lindernd: Aktivitäten und Positionen („Was macht es besser?“)')}</div>
+<div class="lbl" style="margin:14px 0 6px">24-Stunden-Verhalten</div>
+<div class="grid">${T('a.h.morgen','Morgens')}${T('a.h.tag','Tagsüber')}${T('a.h.abend','Abends')}${T('a.h.nacht','Nachts')}${T('a.h.schlaf','Schlaf (Position, Qualität)')}</div>
+
+${SH('4 · Geschichte')}
+<p class="hint">Do features fit? Stadium und Stabilität der Problematik einschätzen.</p>
+<div class="grid w2">${SEL('a.beginn','Beginn',['traumatisch','spontan','schleichend','postoperativ'])}${T('a.dauer','Dauer der Beschwerden')}</div>
+<div class="grid w2" style="margin-top:14px">${A('a.akt','Aktuelle Geschichte (Unfallmechanismus, Symptomabfolge, Belastbarkeit)')}${A('a.vor','Vorgeschichte (frühere Episoden, Verlauf, prädisponierende Faktoren, Bewegungsverhalten)')}</div>
+
+${SH('5 · Spezielle Fragen')}
+<div class="grid w2">${A('a.gez','Allgemeiner Gesundheitszustand, sonstige Pathologien',' ',2)}${A('a.med','Medikamente',' ',2)}${A('a.gew','Gewichtsverlust',' ',2)}${A('a.neuro','Neurologische Symptome',' ',2)}${A('a.bild','OP-Berichte und Bildgebung (Röntgen, MRT, CT)',' ',2)}</div>
+${SH('Red Flags','<span class="sub" style="color:var(--muted);font-size:.8rem">weitere medizinische Abklärung nötig</span>')}
+${CHS('Red Flags','red',RED,'rf.')}
+${SH('Yellow Flags','<span class="sub" style="color:var(--muted);font-size:.8rem">psychosoziale Risikofaktoren</span>')}
+${CHS('Yellow Flags','yellow',YELLOW,'yf.')}
+<div style="margin-top:14px">${A('a.flagnote','Notizen zu Flags und Kontraindikationen','',2)}</div>
+
+${SH('Erste Hypothesen')}
+<div class="grid">${SEL('h.mech','Dominanter Schmerzmechanismus',['nozizeptiv','peripher neurogen','zentral sensibilisiert','gemischt'])}${SEL('h.stad','Heilungsstadium',['akut','subakut','chronisch','akut auf chronisch'])}${SEL('h.sev','Severity (Stärke)',['gering','mittel','hoch'])}${SEL('h.irr','Irritability (Reizbarkeit)',['gering','mittel','hoch'])}${SEL('h.nat','Nature',['mechanisch','entzündlich','neurogen','systemisch/unklar'])}</div>
+<div class="grid w2" style="margin-top:14px">${A('h.quelle','Quellen der Symptome',' ',2)}${A('h.beitr','Beitragende Faktoren',' ',2)}</div>
+${SH('Present Pain (Beginn der Untersuchung)')}
+${T('a.present','„Haben Sie jetzt Schmerzen oder Symptome?“')}
+`);
+SECS[SECS.length-1].extra=()=>{const n=S.bc.front.length+S.bc.back.length;return n?[`Bodychart: ${n} Striche eingezeichnet (vorne ${S.bc.front.length}, hinten ${S.bc.back.length}), Bereiche 1–${S.bcn||1}`]:[]};
+SECS[SECS.length-1].init=bcInit;
+hooks.push(()=>{});
+/* ---------- Modul: Ortho / Bewegungsapparat ---------- */
+const ROM={
+ 'HWS':[['Flexion',''],['Extension',''],['Rotation',''],['Lateralflexion','']],
+ 'BWS/LWS':[['Flexion (FBA cm)',''],['Extension',''],['Rotation',''],['Lateralflexion','']],
+ 'Schulter':[['Flexion/Extension','170–0–40'],['Abduktion/Adduktion','170–0–40'],['Außen-/Innenrotation','60–0–70']],
+ 'Ellbogen':[['Extension/Flexion','0–0–150'],['Supination/Pronation','80–0–80']],
+ 'Hand':[['Extension/Flexion','60–0–60'],['Radial-/Ulnarduktion','20–0–30']],
+ 'Hüfte':[['Extension/Flexion','10–0–130'],['Abduktion/Adduktion','45–0–30'],['Außen-/Innenrotation','45–0–35']],
+ 'Knie':[['Extension/Flexion','0–0–140']],
+ 'OSG/Fuß':[['Dorsalext./Plantarflexion','20–0–40']]
+};
+const romRows=[];Object.entries(ROM).forEach(([r,list],ri)=>list.forEach((m,mi)=>{const k=`rom.${ri}.${mi}`;
+ romRows.push(`<tr data-reg="${r}" hidden><td class="nm">${r}</td><td class="nm">${m[0]}</td><td class="ref">${m[1]||'–'}</td>${TI(k+'.l','text','° links')}${TI(k+'.r','text','° rechts')}${TS(k+'.s',['schmerzfrei','Schmerz bei Bewegung','Schmerz am Ende','Schmerz mit Überdruck','Bewegungsangst'])}${TI(k+'.n','text','Qualität, Symptomreaktion')}</tr>`)}));
+const muRows=[1,2,3,4,5,6].map(i=>`<tr>${TI('mu.'+i+'.m','text','Muskel / Bewegung')}${TS('mu.'+i+'.l',['0','1','2','3','4','5'])}${TS('mu.'+i+'.r',['0','1','2','3','4','5'])}${TS('mu.'+i+'.sch',['schmerzfrei','Schmerz'])}${TI('mu.'+i+'.len','text','Länge / Koordination')}</tr>`);
+const pvRows=[1,2,3,4,5,6].map(i=>`<tr>${TI('pv.'+i+'.g','text','Gelenk / Segment')}${TS('pv.'+i+'.t',['PPIVM','PAIVM','Traktion','Kompression','Gleiten'])}${TS('pv.'+i+'.sym',['keine Symptome','Schmerz','Resistenz','Spasmus','Schmerz + Resistenz'])}${TS('pv.'+i+'.e',['normal','hart','weich','leer','federnd','Spasmus'])}${TI('pv.'+i+'.n','text','Vergleich zu anderer Seite / Segment')}</tr>`);
+reg('ortho','Ortho',false,'Bewegungsapparat · Funktionsuntersuchung',`
+${SH('Inspektion')}
+<div class="grid w2">${A('o.insp','Haltung, Ausweichhaltung, Deformitäten, Gelenk- und Beinachsen, Muskelrelief, Haut, Hilfsmittel')}${A('o.inspk','Klinische Relevanz / Symptomreaktion',' ')}</div>
+${SH('Funktionelle Demo')}
+${A('o.demo','Wie führt der Patient die problematische Bewegung durch? Beteiligte Komponenten und Strukturen',' ',2)}
+${SH('Aktive Bewegungen')}
+<p class="hint">Regionen auswählen. Richtwerte nach Neutral-Null-Methode, je nach Quelle abweichend. Gelenksmessung, ggf. mit Überdruck, gehalten, wiederholt oder kombiniert.</p>
+<div class="chips" id="rom-regs" data-title="Untersuchte Regionen">${Object.keys(ROM).map(r=>CH('romreg.'+r,r)).join('')}</div>
+<div style="margin-top:12px">${TBL(['Region','Bewegung','Richtwert','Links','Rechts','Symptome','Notiz'],romRows)}</div>
+${SH('Palpation')}
+<div class="grid w2">${A('o.pa.haut','Haut (Temperatur, Schweiß, Abhebbarkeit, Verschieblichkeit)',' ',2)}${A('o.pa.mus','Muskel (Tonus, Triggerpunkte, Atrophie)',' ',2)}${A('o.pa.kn','Knochen (Ausrichtung, Muskel- und Bandansätze)',' ',2)}${A('o.pa.wt','Weichteile (interspinal, interlaminär) und Gelenke',' ',2)}</div>
+${SH('Passiv-physiologische und -akzessorische Bewegungen')}
+<p class="hint">Wiederbefundparameter (Asterisks) vorher festlegen. Through-range und End-of-range-Gefühl beurteilen.</p>
+${TBL(['Gelenk / Segment','Technik','Symptome / Zeichen','Endgefühl','Notiz'],pvRows)}
+${SH('Muskeltests')}
+${TBL(['Muskel / Bewegung','Kraft links (0–5)','Kraft rechts (0–5)','Schmerz','Länge / Koordination'],muRows)}
+${SH('Sonstige Tests und Screening')}
+<div class="grid w2">${A('o.stab','Instabilitätstests',' ',2)}${A('o.vask','Vaskuläre Tests, Tap-Tests',' ',2)}${A('o.screen','Screeningtests (Hypothese zur beteiligten Struktur prüfen)',' ',2)}${A('o.spec','Weitere Tests / Befunde',' ',2)}</div>`);
+
+/* ---------- Modul: Neuro ---------- */
+const SEG=[['C4','',''],['C5','Schulterabduktion',''],['C6','Ellbogenflexion, Handgelenkextension',''],['C7','Ellbogenextension, Handgelenkflexion',''],['C8','Daumenextension, Fingerflexion',''],['T1','Fingerabduktion',''],['L1','',''],['L2','Hüftflexion',''],['L3','Knieextension',''],['L4','Fußhebung',''],['L5','Großzehenextension',''],['S1','Plantarflexion',''],['S2','','']];
+const SENS=['normal','hypästhetisch','hyperästhetisch','aufgehoben','Parästhesie'];
+const segRows=SEG.map((s,i)=>`<tr><td class="nm">${s[0]}</td><td class="ref">${s[1]||'–'}</td>${TS('ne.'+i+'.kl',['0','1','2','3','4','5'])}${TS('ne.'+i+'.kr',['0','1','2','3','4','5'])}${TS('ne.'+i+'.sl',SENS)}${TS('ne.'+i+'.sr',SENS)}</tr>`);
+const REF=[['BSR (C5/6)'],['RPR (C6)'],['TSR (C7)'],['PSR (L4)'],['ASR (S1)'],['Babinski']];
+const RFV=['0 fehlt','+ abgeschwächt','++ normal','+++ gesteigert','Klonus','negativ','positiv'];
+const refRows=REF.map((r,i)=>`<tr><td class="nm">${r[0]}</td>${TS('nr.'+i+'.l',RFV)}${TS('nr.'+i+'.r',RFV)}</tr>`);
+const NDT=['ULNT1 (Nervus medianus)','ULNT2 (Median / Radialis)','ULNT3 (Nervus ulnaris)','Nervus femoralis (PKB)','SLR','Slump','Weitere Variation'];
+const ndRows=NDT.map((n,i)=>`<tr><td class="nm">${n}</td>${TI('nd.'+i+'.l','text','links')}${TI('nd.'+i+'.r','text','rechts')}${TI('nd.'+i+'.s','text','Sensibilisierung')}</tr>`);
+reg('neuro','Neuro',false,'Funktionsuntersuchung',`
+${SH('Kennmuskeln und Sensibilität')}
+<p class="hint">Kraft 0–5, Sensibilität je Dermatom. Nur auffällige oder relevante Segmente ausfüllen.</p>
+${TBL(['Segment','Kennbewegung','Kraft links','Kraft rechts','Sensibilität links','Sensibilität rechts'],segRows)}
+${SH('Reflexe')}
+${TBL(['Reflex','Links','Rechts'],refRows)}
+${SH('Neurodynamische Tests')}
+<p class="hint">Symptomreaktion, Bewegungsausmaß, Seitendifferenz, Sensibilisierung (z. B. Halsflexion, Fußposition).</p>
+${TBL(['Test','Links','Rechts','Sensibilisierung'],ndRows)}
+${SH('Weiteres')}
+<div class="grid w2">${A('ne.gang','Gang, Koordination, Gleichgewicht',' ',2)}${A('ne.hn','Hirnnerven, Tonus, Spastik, weitere Befunde',' ',2)}</div>`);
+
+/* ---------- Modul: Pulmo ---------- */
+reg('pulmo','Pulmo / Atmung',false,'Funktionsuntersuchung',`
+<div class="grid">${T('p.af','Atemfrequenz (/min)','number')}${T('p.spo2','SpO₂ (%)','number')}${T('p.puls','Puls (/min)','number')}${T('p.rr','Blutdruck (mmHg)')}
+${SEL('p.typ','Atemtyp',['kostosternal','kostoabdominal','abdominal','paradox'])}${SEL('p.thorax','Thoraxform',['unauffällig','Fassthorax','Trichterbrust','Kielbrust','Skoliose / Kyphose'])}
+${SEL('p.dys','Dyspnoe (mMRC)',['0','1','2','3','4'])}${SEL('p.borg','Borg-Skala (0–10)',['0','0,5','1','2','3','4','5','6','7','8','9','10'])}
+${T('p.ex1','Thoraxumfang Inspiration (cm)','number')}${T('p.ex2','Thoraxumfang Exspiration (cm)','number')}${T('p.6mwt','6-Minuten-Gehtest (m)','number')}</div>
+<div class="res"><div><span>Thoraxexkursion</span><b id="p-exk">–</b></div></div>
+${SH('Husten und Sekret')}
+<div class="grid">${SEL('p.hu','Husten',['kein','trocken','produktiv','Reizhusten'])}${T('p.sek','Sputum (Menge, Farbe, Konsistenz)')}${SEL('p.hust','Hustenkraft',['kräftig','abgeschwächt','ineffektiv'])}</div>
+${SH('Auskultation und Perkussion')}
+<div class="grid w2">${A('p.aus','Atemgeräusch und Nebengeräusche (Rasseln, Giemen, Stridor, Pleurareiben), je Lungenfeld',' ',2)}${A('p.perk','Perkussion, Stimmfremitus, Zwerchfellbeweglichkeit',' ',2)}${A('p.bel','Belastbarkeit, Sauerstoffbedarf, Hilfsmittel (Inhalation, O₂)',' ',2)}${A('p.dx','Ärztliche Befunde (Lungenfunktion, Röntgen, CT)',' ',2)}</div>`);
+hooks.push(()=>{const a=parseFloat(S.f['p.ex1']),b=parseFloat(S.f['p.ex2']),el=$('#p-exk');if(el)el.textContent=(a>=0&&b>=0&&S.f['p.ex1']&&S.f['p.ex2'])?(a-b).toFixed(1)+' cm':'–'});
+
+/* ---------- Modul: Lymph ---------- */
+const lyRows=[1,2,3,4,5,6].map(i=>`<tr>${TI('ly.'+i+'.p','text','Messpunkt, z. B. 10 cm prox. Epicondylus')}${TI('ly.'+i+'.l','number','cm')}${TI('ly.'+i+'.r','number','cm')}<td class="num nm" id="ly-d${i}">–</td></tr>`);
+reg('lymph','Lymphe / Ödem',false,'Funktionsuntersuchung',`
+<div class="grid">${T('l.lok','Lokalisation des Ödems')}${SEL('l.stad','Stadium (ISL)',['0 (latent)','I (spontan reversibel)','II (spontan irreversibel)','III (Elephantiasis)'])}${SEL('l.stem','Stemmer-Zeichen',['negativ','positiv','nicht prüfbar'])}${SEL('l.pit','Dellenbildung',['keine','leicht','deutlich','nicht eindrückbar'])}${SEL('l.seite','Seite',['links','rechts','beidseits'])}${T('l.seit','Seit wann')}</div>
+${SH('Hautbefund')}
+${CHS('Hautbefund','',['Hautfalten verdickt','Hyperkeratose','Papillomatose','Lymphzysten / Fisteln','Mykose','Rötung / Überwärmung (Erysipel-Verdacht)','Narben','Pigmentierung'],'ly.sk')}
+${SH('Umfangmessung')}
+${TBL(['Messpunkt','Links (cm)','Rechts (cm)','Differenz'],lyRows)}
+${SH('Weiteres')}
+<div class="grid w2">${A('l.ursa','Ursache (primär / sekundär, OP, Radiatio, Trauma)',' ',2)}${A('l.kompr','Kompression, Hilfsmittel, bisherige Therapie (KPE, MLD, Bandagen)',' ',2)}${A('l.bew','Beweglichkeit, Schmerz, Spannungsgefühl, Funktionseinschränkung',' ',2)}${A('l.risk','Kontraindikationen (z. B. dekompensierte Herzinsuffizienz, akute Thrombose, Erysipel)',' ',2)}</div>`);
+hooks.push(k=>{for(let i=1;i<=6;i++){const l=parseFloat(S.f['ly.'+i+'.l']),r=parseFloat(S.f['ly.'+i+'.r']),el=$('#ly-d'+i);if(el)el.textContent=(!isNaN(l)&&!isNaN(r))?((l-r)>0?'+':'')+(l-r).toFixed(1)+' cm':'–'}});
+/* ---------- Modul: Digitale Haltungsanalyse ---------- */
+const PV={
+ side:{n:'Seitlich',pts:['Tragus (Ohr)','C7 (Dornfortsatz)','Akromion','Trochanter major','Knie (lat. Gelenkspalt)','Malleolus lateralis']},
+ front:{n:'Frontal (von vorn)',pts:['Ohr, Bild links','Ohr, Bild rechts','Akromion, Bild links','Akromion, Bild rechts','Beckenkamm, Bild links','Beckenkamm, Bild rechts','Patella, Bild links','Patella, Bild rechts','Malleolus, Bild links','Malleolus, Bild rechts','Kopfmitte (Glabella)','Rumpfmitte (Sternum)']},
+ back:{n:'Dorsal (von hinten)',pts:['Ohr, Bild links','Ohr, Bild rechts','Akromion, Bild links','Akromion, Bild rechts','Beckenkamm, Bild links','Beckenkamm, Bild rechts','Knie (Kniekehle), Bild links','Knie (Kniekehle), Bild rechts','Malleolus, Bild links','Malleolus, Bild rechts','Kopfmitte (Protub. occ.)','Rumpfmitte (Dornfortsatz)']}
+};
+const PW=640;let pView='side',pAct=0,pDrag=-1;const pImgs={};
+const pst=v=>(S.pos[v]=S.pos[v]||{pts:{},cm:''});
+const pAng=(a,b)=>Math.atan2(Math.abs(b[1]-a[1]),Math.abs(b[0]-a[0]))*180/Math.PI;
+function pAbs(v){const o={};Object.entries(pst(v).pts).forEach(([i,p])=>o[i]=[p[0]*PW,p[1]*PW]);return o}
+function pScale(v,P){const n=PV[v].pts.length,a=P[n],b=P[n+1],cm=parseFloat(pst(v).cm);
+  if(a&&b&&cm>0){const d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(d>5)return cm/d}return null}
+function pMetrics(v){
+  const P=pAbs(v),sc=pScale(v,P),u=sc?' cm':' px',f=x=>(x*(sc||1)).toFixed(1)+u,out=[];
+  if(v==='side'){
+    if(P[0]&&P[1])out.push(['Kraniovertebraler Winkel (CVA)',pAng(P[1],P[0]).toFixed(1)+'°']);
+    const lot=P[5]?P[5][0]:null,dir=S.f['po.face']==='links'?-1:1;
+    if(lot!=null)[[0,'Tragus'],[2,'Akromion'],[3,'Trochanter major'],[4,'Knie']].forEach(([i,n])=>{if(P[i]){const d=(P[i][0]-lot)*dir;out.push([n+' zum Lot',f(Math.abs(d))+(Math.abs(d)<1?'':d>0?' ventral':' dorsal')])}});
+  }else{
+    const sd=v==='front'?['rechts','links']:['links','rechts'];
+    [['Ohrlinie',0,1],['Schulterlinie',2,3],['Beckenlinie',4,5],['Kniegelenkslinie',6,7],['Malleolenlinie',8,9]].forEach(([n,a,b])=>{
+      if(P[a]&&P[b]){const dy=P[b][1]-P[a][1],low=Math.abs(dy)<1?'':dy>0?sd[1]:sd[0];out.push([n+' (Neigung)',pAng(P[a],P[b]).toFixed(1)+'°'+(low?' · '+low+' tiefer':'')])}});
+    if(P[8]&&P[9]){const lot=(P[8][0]+P[9][0])/2;
+      const sh=(x,n)=>{const d=x-lot;out.push([n+' zum Lot',f(Math.abs(d))+(Math.abs(d)<.5?'':' nach '+(d>0?sd[1]:sd[0]))])};
+      if(P[10])sh(P[10][0],'Kopfmitte');if(P[11])sh(P[11][0],'Rumpfmitte');
+      if(P[4]&&P[5])sh((P[4][0]+P[5][0])/2,'Beckenmitte');
+    }
+  }
+  return out;
+}
+const POSTURE_CH=['Kopf vorgeschoben','Schultern protrahiert','Hyperkyphose BWS','Flachrücken','Hyperlordose LWS','Becken ant. gekippt','Becken post. gekippt','Genu recurvatum','Genu valgum','Genu varum','Skoliose-Hinweis','Schulterhochstand','Beckenschiefstand','Rumpfverschiebung','Pes planus','Pes cavus','Hallux valgus'];
+reg('haltung','Haltungsanalyse',false,'digital, mit Foto',`
+<p class="hint">Foto laden, Landmarken nacheinander antippen, Punkte lassen sich per Ziehen korrigieren. Fotos werden nicht gespeichert, die gesetzten Punkte und Ergebnisse schon.</p>
+<div class="tools" style="margin-bottom:10px" id="po-views"></div>
+<div class="grid" style="margin-bottom:12px">
+  <div class="f"><label for="po-file">Foto</label><input id="po-file" type="file" accept="image/*"></div>
+  ${SEL('po.face','Blickrichtung im Foto (seitlich)',['rechts','links'])}
+  <div class="f"><label for="po-cm">Maßstab: Abstand Maßstab 1 – 2 (cm)</label><input id="po-cm" type="number" step="0.1" placeholder="z. B. 100"></div>
+  <div class="chips" style="align-self:end;padding-bottom:6px" data-title="Anzeige">${CH('po.grid','Raster einblenden')}</div>
+</div>
+<div class="legend" id="po-list"></div>
+<div class="posture-wrap"><canvas id="po-cv" style="height:auto" width="640" height="800" aria-label="Foto mit Landmarken"></canvas></div>
+<div class="tools" style="margin-top:8px"><button type="button" class="btn sm" id="po-rm">Aktiven Punkt entfernen</button><button type="button" class="btn sm" id="po-clr">Alle Punkte dieser Ansicht löschen</button></div>
+<div class="res" id="po-res"></div>
+<p class="hint" style="margin-top:10px">Aufnahme: Kamera auf Höhe von Becken oder Brustbein, 2–3 m Abstand, Patient entspannt stehend, Bodenlinie und Maßstab (z. B. Maßband an der Wand) im Bild. Ohne Maßstab erscheinen Strecken in Pixel. Winkel gelten nur für das Foto und ersetzen keine klinische Beurteilung.</p>
+${SH('Beobachtungen')}
+${CHS('Haltungsbefund','',POSTURE_CH,'ph.')}
+<div style="margin-top:12px">${A('po.note','Notizen zur Haltung, Relevanz für das Hauptproblem',' ',2)}</div>`);
+const haltungSec=SECS[SECS.length-1];
+haltungSec.extra=()=>{const o=[];Object.keys(PV).forEach(v=>{const m=pMetrics(v);if(m.length){o.push('\nHALTUNGSANALYSE '+PV[v].n.toUpperCase());m.forEach(x=>o.push(`  ${x[0]}: ${x[1]}`))}});return o};
+haltungSec.init=function(){
+  const cv=$('#po-cv'),c=cv.getContext('2d'),cs=()=>getComputedStyle(document.documentElement);
+  const all=()=>PV[pView].pts.concat(['Maßstab 1 (optional)','Maßstab 2 (optional)']);
+  const next=()=>{const n=PV[pView].pts.length,p=pst(pView).pts;for(let k=1;k<=n;k++){const i=(pAct+k)%n;if(!p[i]){pAct=i;return}}};
+  function list(){
+    $('#po-views').innerHTML=Object.entries(PV).map(([k,v])=>`<button type="button" class="btn${k===pView?' on':''}" data-v="${k}">${v.n}</button>`).join('');
+    const p=pst(pView).pts;
+    $('#po-list').innerHTML=all().map((n,i)=>`<button type="button" class="btn sm${i===pAct?' on':''}" data-i="${i}">${p[i]?'✓ ':''}${n}</button>`).join('');
+    $('#po-cm').value=pst(pView).cm||'';
+  }
+  function res(){
+    const m=pMetrics(pView);
+    $('#po-res').innerHTML=m.length?m.map(x=>`<div><span>${x[0]}</span><b>${x[1]}</b></div>`).join(''):'<div><span>Noch keine Auswertung: Punkte setzen</span></div>';
+  }
+  function draw(){
+    const im=pImgs[pView],H=im?Math.round(PW*im.height/im.width):800;
+    if(cv.width!==PW||cv.height!==H){cv.width=PW;cv.height=H}
+    const acc=cssv('--accent').trim(),warn=cssv('--warn').trim();
+    c.fillStyle='#8a979c';c.fillRect(0,0,PW,H);
+    if(im)c.drawImage(im,0,0,PW,H);else{c.fillStyle='#e8eef0';c.font='500 16px sans-serif';c.textAlign='center';c.fillText('Foto laden, dann Punkte setzen',PW/2,H/2)}
+    if(S.f['po.grid']){c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=1;c.beginPath();for(let i=1;i<8;i++){c.moveTo(PW*i/8,0);c.lineTo(PW*i/8,H);c.moveTo(0,H*i/8);c.lineTo(PW,H*i/8)}c.stroke()}
+    const P=pAbs(pView),line=(a,b,col,dash)=>{if(!a||!b)return;c.strokeStyle=col;c.lineWidth=2;c.setLineDash(dash||[]);c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(b[0],b[1]);c.stroke();c.setLineDash([])};
+    if(pView==='side'){
+      if(P[5]){line([P[5][0],0],[P[5][0],H],'#ffffff',[8,6])}
+      line(P[0],P[1],acc);if(P[1])line(P[1],[P[1][0]+(P[0]&&P[0][0]<P[1][0]?-120:120),P[1][1]],'#ffffff',[5,4]);
+      line(P[1],P[2],warn);line(P[2],P[3],warn);line(P[3],P[4],warn);line(P[4],P[5],warn);
+    }else{
+      [[0,1],[2,3],[4,5],[6,7],[8,9]].forEach(([a,b])=>line(P[a],P[b],acc));
+      if(P[8]&&P[9]){const x=(P[8][0]+P[9][0])/2;line([x,0],[x,H],'#ffffff',[8,6])}
+      line(P[10],P[11],warn);
+    }
+    if(P[PV[pView].pts.length]&&P[PV[pView].pts.length+1])line(P[PV[pView].pts.length],P[PV[pView].pts.length+1],'#ffd84a',[3,3]);
+    Object.entries(P).forEach(([i,p])=>{c.fillStyle=(+i===pAct)?'#ffd84a':'#ffffff';c.strokeStyle='#18242a';c.lineWidth=2;c.beginPath();c.arc(p[0],p[1],7,0,7);c.fill();c.stroke();
+      c.fillStyle='#18242a';c.font='600 11px sans-serif';c.textAlign='center';c.fillText(+i+1,p[0],p[1]+4)});
+  }
+  const redraw=()=>{draw();res();list()};
+  const pos=e=>{const r=cv.getBoundingClientRect(),k=cv.width/r.width;return [(e.clientX-r.left)*k,(e.clientY-r.top)*k]};
+  cv.addEventListener('pointerdown',e=>{
+    const q=pos(e),P=pAbs(pView);let hit=-1,best=18*(cv.width/cv.getBoundingClientRect().width);
+    Object.entries(P).forEach(([i,p])=>{const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<best){best=d;hit=+i}});
+    cv.setPointerCapture(e.pointerId);
+    if(hit>=0){pDrag=hit;pAct=hit}
+    else{pst(pView).pts[pAct]=[q[0]/PW,q[1]/PW];pDrag=pAct;next();save()}
+    redraw();
+  });
+  cv.addEventListener('pointermove',e=>{if(pDrag<0)return;const q=pos(e);pst(pView).pts[pDrag]=[q[0]/PW,q[1]/PW];draw();res()});
+  const up=()=>{if(pDrag>=0){pDrag=-1;save();redraw()}};
+  cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  $('#po-views').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;pView=b.dataset.v;pAct=0;next0();redraw()};
+  const next0=()=>{const p=pst(pView).pts;pAct=0;for(let i=0;i<PV[pView].pts.length;i++)if(!p[i]){pAct=i;return}};
+  $('#po-list').onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;pAct=+b.dataset.i;redraw()};
+  $('#po-rm').onclick=()=>{delete pst(pView).pts[pAct];save();redraw()};
+  $('#po-clr').onclick=()=>{pst(pView).pts={};pAct=0;save();redraw()};
+  $('#po-cm').addEventListener('input',e=>{pst(pView).cm=e.target.value;save();res();draw()});
+  $('#po-file').addEventListener('change',e=>{
+    const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+    rd.onload=()=>{const im=new Image();im.onload=()=>{pImgs[pView]=im;redraw();toast('Foto geladen')};im.src=rd.result};rd.readAsDataURL(f);
+  });
+  hooks.push(k=>{if(k==='po.grid'||k==='po.face')redraw()});
+  next0();redraw();
+  haltungSec.redraw=redraw;
+};
+/* ---------- Beurteilung und Plan (immer) ---------- */
+const astRows=[1,2,3,4,5,6].map(i=>`<tr>${TI('as.'+i+'.p','text','z. B. Flexion 90°, Gehen 10 min')}${TS('as.'+i+'.t',['subjektiv','physisch'])}${TI('as.'+i+'.v','text','Ausgangswert')}${TI('as.'+i+'.n','text','nach Behandlung')}${TI('as.'+i+'.f','text','nächste Sitzung')}</tr>`);
+reg('plan','Beurteilung und Plan',true,'immer enthalten',`
+${SH('Physiotherapeutische Diagnose')}
+<div class="grid w2">${A('d.imp','Impairment (Körperstruktur und -funktion)',' ',2)}${A('d.akt','Aktivität',' ',2)}${A('d.par','Partizipation',' ',2)}${A('d.kontext','Kontextfaktoren (förderlich / hinderlich)',' ',2)}</div>
+<div class="chips" style="margin:12px 0" data-title="Clinical Reasoning">${CH('d.fit','Features passen zusammen (Do features fit?)')}${CH('d.muster','Klinisches Muster erkennbar')}${CH('d.ki','Keine Kontraindikationen für Probebehandlung')}</div>
+<div class="grid w2">${A('d.hyp','Hypothesen nach der Untersuchung (Quelle, Mechanismus, beitragende Faktoren)',' ',3)}${A('d.prog','Prognose',' ',3)}</div>
+${SH('Verlaufsparameter (Asterisks *)')}
+<p class="hint">Subjektive und physische Parameter vor der Probebehandlung festlegen und danach erneut prüfen.</p>
+${TBL(['Parameter','Art','Vorher','Nach Behandlung','Nächste Sitzung'],astRows)}
+${SH('Behandlungsplan')}
+<div class="grid w2">${A('t.ziele','Ziele (gemeinsam mit dem Patienten)',' ',2)}${A('t.mass','Geplante Maßnahmen',' ',2)}${T('t.freq','Frequenz und Dauer')}${T('t.kontra','Vorsichtsmaßnahmen / Kontraindikationen')}</div>
+${SH('Probebehandlung und Wiederbefund')}
+<div class="grid w2">${A('t.tech','Technik, Dosierung',' ',2)}${A('t.reakt','Reaktion, Wiederbefund der Asterisks',' ',2)}</div>
+${SH('Instruktionen')}
+<div class="grid w2">${A('t.instr','Aufklärung über mögliche Reaktionen, Selbstmanagement, Gelenkschutz',' ',2)}${A('t.heim','Heimprogramm',' ',2)}</div>
+${SH('Reflexion und weitere Planung')}
+${A('t.refl','Was hat sich bestätigt, was ist offen? Plan für die nächste Sitzung',' ',3)}`);
+
+/* ---------- Start ---------- */
+function buildNav(){
+  const link=s=>`<a href="#sec-${s.id}" data-go="${s.id}">${s.name}${s.fixed?'':''}</a>`;
+  $('#nav').innerHTML=`
+  <div class="navgrp"><h4>Immer enthalten</h4>${SECS.filter(s=>s.fixed).map(s=>`<a href="#sec-${s.id}" data-go="${s.id}">${s.name}</a>`).join('')}</div>
+  <div class="navgrp mods"><h4>Module nach Bedarf</h4>${SECS.filter(s=>!s.fixed).map(s=>`<label class="mod"><input type="checkbox" data-mod="${s.id}"${S.mods[s.id]?' checked':''}>${s.name}</label>`).join('')}</div>`;
+  $('#nav').onclick=e=>{const a=e.target.closest('[data-go]');if(!a)return;e.preventDefault();$('#sec-'+a.dataset.go).scrollIntoView({behavior:'smooth',block:'start'})};
+  $('#nav').onchange=e=>{const m=e.target.dataset.mod;if(!m)return;S.mods[m]=e.target.checked;const el=$('#sec-'+m);el.hidden=!e.target.checked;save();
+    if(e.target.checked){el.scrollIntoView({behavior:'smooth',block:'start'});const s=SECS.find(x=>x.id===m);if(s&&s.redraw)s.redraw()}};
+}
+function romVis(){$$('tr[data-reg]').forEach(tr=>tr.hidden=!S.f['romreg.'+tr.dataset.reg])}
+function start(){
+  $('#main').innerHTML=SECS.map(s=>`<section class="card" id="sec-${s.id}"${(!s.fixed&&!S.mods[s.id])?' hidden':''}><header><h2>${s.name}</h2><span class="sub">${s.sub}</span></header><div class="body">${s.html}</div></section>`).join('');
+  bind($('#main'));buildNav();
+  SECS.forEach(s=>s.init&&s.init());
+  hooks.push(k=>{if(String(k).startsWith('romreg.'))romVis()});
+  romVis();hooks.forEach(h=>h(''));
+  try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{bcRedraw();const h=SECS.find(x=>x.id==='haltung');h&&h.redraw&&h.redraw()})}catch(e){}
+}
+$('#b-export').onclick=()=>{
+  const txt=buildText();
+  modal('Befund als Text',`<p class="hint">Enthält alle sichtbaren Bereiche mit ausgefüllten Feldern.</p><textarea id="m-ta" readonly></textarea>`,[{l:'Kopieren',pri:true,f:()=>{copyText(txt,$('#m-ta'));return true}}]);
+  $('#m-ta').value=txt;
+};
+
+/* ---------- Gespeicherte Befunde (nur auf diesem Gerät) ---------- */
+$('#b-lib').onclick=()=>{
+  saveNow();
+  const lib=libGet(),ids=Object.keys(lib).sort((a,b)=>lib[b].t-lib[a].t);
+  const rows=ids.map(id=>`<div class="lrow"><div><b>${esc(lib[id].name)}</b><div class="hint">${lib[id].dat?esc(lib[id].dat)+' · ':''}zuletzt gespeichert ${new Date(lib[id].t).toLocaleString('de-AT')}${id===S.id?' · aktuell geöffnet':''}</div></div><div class="tools"><button type="button" class="btn sm" data-open="${id}">Öffnen</button><button type="button" class="btn sm" data-del="${id}">Löschen</button></div></div>`).join('')||'<p class="hint">Noch kein Befund gespeichert. Sobald du bei den Basisdaten einen Patienten-Namen einträgst, wird der Befund automatisch hier abgelegt.</p>';
+  modal('Gespeicherte Befunde',`<p class="hint">Die Befunde liegen nur auf diesem Gerät, in diesem Browser. Sie werden beim Tippen automatisch gespeichert. Für ein Backup „Sicherung“ nutzen.</p><div id="lib-list">${rows}</div>`,[]);
+  $('#lib-list').onclick=e=>{
+    const o=e.target.closest('[data-open]'),d=e.target.closest('[data-del]');
+    if(o){const id=o.dataset.open;S=JSON.parse(JSON.stringify(lib[id].s));S.id=id;S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};saveNow();location.reload()}
+    if(d){if(!d.dataset.arm){d.dataset.arm=1;d.textContent='Wirklich löschen?';return}
+      const id=d.dataset.del,l=libGet();delete l[id];try{localStorage.setItem(LIB,JSON.stringify(l))}catch(x){}
+      if(S.id===id)S.id=null;d.closest('.lrow').remove();toast('Befund gelöscht')}
+  };
+};
+
+/* ---------- Sicherung aller Befunde ---------- */
+$('#b-backup').onclick=()=>{
+  saveNow();
+  const json=JSON.stringify({app:'befund-studio',lib:libGet(),cur:S});
+  modal('Sicherung',`<p class="hint">Enthält alle gespeicherten Befunde. Text kopieren und an einem sicheren Ort ablegen. Zum Wiederherstellen eine Sicherung einfügen. Vorhandene Befunde bleiben erhalten.</p><textarea id="m-ta"></textarea>`,[
+    {l:'Kopieren',pri:true,f:()=>{copyText($('#m-ta').value,$('#m-ta'));return true}},
+    {l:'Wiederherstellen',f:()=>{try{
+      const o=JSON.parse($('#m-ta').value);
+      if(o&&o.lib){const l=libGet();Object.assign(l,o.lib);localStorage.setItem(LIB,JSON.stringify(l));if(o.cur&&o.cur.f)S=o.cur}
+      else if(o&&o.f)S=o;else throw 0;
+      S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};saveNow();location.reload();return
+    }catch(e){toast('Sicherung nicht lesbar');return true}}}]);
+  $('#m-ta').value=json;
+};
+let newArm=false;
+$('#b-new').onclick=e=>{
+  if(!newArm){newArm=true;e.target.textContent='Neuen Befund beginnen?';setTimeout(()=>{newArm=false;e.target.textContent='Neuer Befund'},3500);return}
+  saveNow();S=fresh();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(x){}location.reload();
+};
+
+/* ---------- Drucken / PDF ---------- */
+let printing=false;
+function pval(el){
+  if(el.tagName==='SELECT')return el.value?el.options[el.selectedIndex].text:'';
+  const v=(el.value||'').trim();
+  if(el.type==='date'&&v){const d=new Date(v);return isNaN(d)?v:d.toLocaleDateString('de-AT')}
+  return v;
+}
+function printClean(){
+  if(!printing)return;printing=false;
+  $$('.pv,.pv-extra').forEach(x=>x.remove());
+  $$('.pr-hide').forEach(x=>x.classList.remove('pr-hide'));
+  $$('.pr-empty').forEach(x=>x.classList.remove('pr-empty'));
+  LIGHT=false;bcRedraw();const h=SECS.find(x=>x.id==='haltung');h&&h.redraw&&h.redraw();
+}
+function printPrep(){
+  printClean();printing=true;LIGHT=true;
+  bcRedraw();const hs=SECS.find(x=>x.id==='haltung');hs&&hs.redraw&&hs.redraw();
+  const F=S.f;
+  $('#print-head').innerHTML=`<h1>Physiotherapeutischer Befund</h1><div><b>${esc(F['b.pat']||'')}</b>${F['b.geb']?' · geb. '+new Date(F['b.geb']).toLocaleDateString('de-AT'):''}${F['b.datum']?' · Befund vom '+new Date(F['b.datum']).toLocaleDateString('de-AT'):''}</div>${F['b.thera']?`<div>Therapeut/in: ${esc(F['b.thera'])}</div>`:''}`;
+  const empty=el=>el.classList.add('pr-empty');
+  $$('main [data-k]').forEach(el=>{
+    if(el.type==='checkbox'||el.closest('[hidden]'))return;
+    const v=pval(el),d=document.createElement('div');d.className='pv';d.textContent=v;el.after(d);el.classList.add('pr-hide');
+    const f=el.closest('.f');if(f&&!v)empty(f);
+  });
+  $$('main .chip').forEach(c=>{if(!$('input',c).checked)empty(c)});
+  $$('main .chips').forEach(c=>{if(!$$('.chip',c).some(x=>!x.classList.contains('pr-empty')))empty(c)});
+  $$('main .tbl').forEach(t=>{
+    let n=0;$$('tbody tr',t).forEach(tr=>{if(tr.hidden)return;if($$('[data-k]',tr).some(el=>pval(el)))n++;else empty(tr)});
+    if(!n)empty(t);
+  });
+  $$('main .res').forEach(r=>{if(r.id==='po-res'||!$$('b',r).some(b=>b.textContent.trim()!=='–'))empty(r)});
+  const nbc=S.bc.front.length+S.bc.back.length;
+  if(!nbc){$$('main .charts').forEach(empty);empty($('#bc-leg'))}
+  $$('main .posture-wrap').forEach(w=>{if(!pImgs[pView])empty(w)});
+  const hb=$('#sec-haltung .body');
+  if(hb){const lines=[];Object.keys(PV).forEach(v=>{const m=pMetrics(v);if(m.length){lines.push(PV[v].n);m.forEach(x=>lines.push('  '+x[0]+': '+x[1]))}});
+    if(lines.length){const x=document.createElement('div');x.className='pv-extra';x.textContent=lines.join('\n');hb.appendChild(x)}}
+  /* Container und Überschriften ohne Inhalt ausblenden */
+  const LEAF='.f,.chips,.tbl,.res,.charts,.posture-wrap,.pv-extra,.print-only';
+  const has=el=>{
+    if(el.hidden||el.classList.contains('pr-empty'))return false;
+    if(el.matches(LEAF))return true;
+    if(el.matches('.sub-h,.hint,.banner,.legend,.tools,.lbl'))return false;
+    const kids=[...el.children];const r=kids.some(has);if(!r&&kids.length)empty(el);return r;
+  };
+  $$('main section.card').forEach(sec=>{
+    if(sec.hidden)return;
+    const kids=[...$('.body',sec).children];let any=false;
+    kids.forEach(k=>{if(has(k))any=true});
+    kids.forEach((k,i)=>{
+      if(k.matches('.sub-h')||k.matches('.lbl')){
+        let j=i+1,ok=false;while(j<kids.length&&!kids[j].matches('.sub-h')){if(has(kids[j])){ok=true;break}j++}
+        if(!ok)empty(k);
+      }
+    });
+    if(!any)empty(sec);
+  });
+}
+$('#b-print').onclick=()=>{
+  saveNow();printPrep();
+  toast('Druckdialog: „Als PDF speichern“ wählen, um eine PDF-Datei zu erhalten');
+  setTimeout(()=>{try{window.print()}catch(e){toast('Drucken ist hier nicht verfügbar')}},250);
+};
+addEventListener('afterprint',printClean);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(printClean,600)});
+document.addEventListener('pointerdown',()=>{if(printing)printClean()},true);
+try{if(window.__PWA){if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js')}}catch(e){}
+start();
+</script>
+
+</body></html>
