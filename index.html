@@ -185,20 +185,21 @@ let _t;
 function libGet(){try{return JSON.parse(localStorage.getItem(LIB)||'{}')||{}}catch(e){return {}}}
 let LS_OK=true,IDB_OK=true;
 function lsWrite(k,v){try{localStorage.setItem(k,v);return localStorage.getItem(k)===v}catch(e){return false}}
-function libSync(){try{const lib=libGet();lib[S.id]={t:Date.now(),name:(S.f['b.pat']||'Ohne Namen').trim(),dat:S.f['b.erstdat']||S.f['b.datum']||'',s:S};return lsWrite(LIB,JSON.stringify(lib))}catch(e){return false}}
+function libSync(){try{const lib=libGet();lib[S.id]={t:Date.now(),name:(S.f['b.pat']||'').trim()||'Ohne Namen',dat:S.f['b.erstdat']||S.f['b.datum']||'',s:S};return lsWrite(LIB,JSON.stringify(lib))}catch(e){return false}}
+function hasContent(){return Object.keys(S.f).some(k=>S.f[k])||S.bc.front.length>0||S.bc.back.length>0||Object.keys(pImgs).length>0}
 function saveNow(){
   clearTimeout(_t);const was=S.id;
-  if(!S.id&&S.f['b.pat'])S.id='b'+Date.now().toString(36);
+  if(!S.id&&hasContent())S.id='b'+Date.now().toString(36);
   let ok=lsWrite(KEY,JSON.stringify(S));
   if(S.id)ok=libSync()&&ok;
   LS_OK=ok;
-  if(S.id){if(!was&&ok)toast('Neuer Patient angelegt und gespeichert');photosFlush()}
+  if(S.id){if(!was&&ok)toast('Befund wird ab jetzt automatisch gespeichert');photosFlush()}
   stamp();warnStore();
 }
 function stamp(){
   const el=$('#save-st');if(!el)return;
   if(!LS_OK)el.textContent='Achtung: Speichern im Browser ist nicht möglich. Befund bitte als Datei sichern.';
-  else el.textContent=S.id?'Gespeichert um '+new Date().toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'})+' (automatisch)':'Noch nicht gespeichert. Patientennamen eintragen oder „Neuer Befund“ wählen.';
+  else el.textContent=S.id?'Gespeichert um '+new Date().toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'})+' (automatisch)':'Noch leer. Sobald du etwas einträgst, wird automatisch gespeichert.';
 }
 function warnStore(){
   const b=$('#store-warn');if(!b)return;const bad=[];
@@ -213,6 +214,7 @@ const idb=()=>new Promise((res,rej)=>{try{const r=indexedDB.open('befund-studio'
 const idbDo=(mode,fn)=>idb().then(d=>new Promise((res,rej)=>{const t=d.transaction('photos',mode),st=t.objectStore('photos');let out;fn(st,v=>out=v);t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error)}));
 const idbPut=(k,v)=>idbDo('readwrite',st=>st.put(v,k));
 const idbGet=k=>idbDo('readonly',(st,o)=>{const r=st.get(k);r.onsuccess=()=>o(r.result)});
+const idbKeys=()=>idbDo('readonly',(st,o)=>{const r=st.getAllKeys();r.onsuccess=()=>o(r.result)}).then(x=>x||[]);
 const idbDel=k=>idbDo('readwrite',st=>st.delete(k));
 const idbAll=()=>idbDo('readonly',(st,o)=>{const out={};const r=st.openCursor();r.onsuccess=()=>{const c=r.result;if(c){out[c.key]=c.value;c.continue()}else o(out)}}).then(x=>x||{});
 async function idbDelPrefix(p){try{const all=await idbAll();for(const k of Object.keys(all))if(k.startsWith(p))await idbDel(k)}catch(e){}}
@@ -712,7 +714,7 @@ haltungSec.init=function(){
   haltungSec.api={render:(v,c2)=>render(v,c2,-1),redraw,next0,list,res};
 };
 /* ---------- Haltungsanalyse: Kamera und automatische Analyse ---------- */
-function setPhoto(img){pImgs[pView]=img;if(S.id)delete pStored[S.id+':'+pView];photosFlush();const a=haltungSec.api;a&&a.redraw()}
+function setPhoto(img){pImgs[pView]=img;if(S.id)delete pStored[S.id+':'+pView];saveNow();const a=haltungSec.api;a&&a.redraw()}
 function fileToImage(f){
   const rd=new FileReader();
   rd.onload=()=>{const im=new Image();im.onload=()=>{setPhoto(im);toast('Foto geladen')};im.src=rd.result};
@@ -950,11 +952,13 @@ $('#b-export').onclick=()=>{
 };
 
 /* ---------- Gespeicherte Befunde (nur auf diesem Gerät) ---------- */
-$('#b-lib').onclick=()=>{
+$('#b-lib').onclick=async()=>{
   saveNow();
+  let keys=[];try{keys=await idbKeys()}catch(e){}
+  const info=await storageInfo();
   const lib=libGet(),ids=Object.keys(lib).sort((a,b)=>lib[b].t-lib[a].t);
-  const rows=ids.map(id=>`<div class="lrow"><div><b>${esc(lib[id].name)}</b><div class="hint">${lib[id].dat?'Erstbehandlung '+esc(lib[id].dat)+' · ':''}zuletzt gespeichert ${new Date(lib[id].t).toLocaleString('de-AT')}${id===S.id?' · aktuell geöffnet':''}</div></div><div class="tools"><button type="button" class="btn sm" data-open="${id}">Öffnen</button><button type="button" class="btn sm" data-del="${id}">Löschen</button></div></div>`).join('')||'<p class="hint">Noch kein Befund gespeichert. Sobald du bei den Basisdaten einen Patienten-Namen einträgst, wird der Befund automatisch hier abgelegt.</p>';
-  modal('Gespeicherte Befunde',`<p class="hint">Die Befunde liegen nur auf diesem Gerät, in diesem Browser. Sie werden beim Tippen automatisch gespeichert. Für ein Backup „Sicherung“ nutzen.</p><div id="lib-list">${rows}</div>`,[]);
+  const rows=ids.map(id=>`<div class="lrow"><div><b>${esc(lib[id].name)}</b><div class="hint">${lib[id].dat?'Erstbehandlung '+esc(lib[id].dat)+' · ':''}${keys.filter(k=>String(k).startsWith(id+':')).length} Foto(s) · zuletzt gespeichert ${new Date(lib[id].t).toLocaleString('de-AT')}${id===S.id?' · aktuell geöffnet':''}</div></div><div class="tools"><button type="button" class="btn sm" data-open="${id}">Öffnen</button><button type="button" class="btn sm" data-del="${id}">Löschen</button></div></div>`).join('')||'<p class="hint">Noch kein Befund gespeichert. Sobald du bei den Basisdaten einen Patienten-Namen einträgst, wird der Befund automatisch hier abgelegt.</p>';
+  modal('Gespeicherte Befunde',`<p class="hint">Die Befunde liegen nur auf diesem Gerät, in diesem Browser. Sie werden beim Tippen automatisch gespeichert. Für ein Backup „Sicherung“ nutzen.</p><div id="lib-list">${rows}</div><p class="hint" style="margin-top:12px">${esc(info)}</p>`,[]);
   $('#lib-list').onclick=async e=>{
     const o=e.target.closest('[data-open]'),d=e.target.closest('[data-del]');
     if(o){const id=o.dataset.open;saveNow();clearPhotos();S=JSON.parse(JSON.stringify(lib[id].s));S.id=id;S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};saveNow();$('#modal-root').innerHTML='';rerender()}
@@ -964,6 +968,13 @@ $('#b-lib').onclick=()=>{
   };
 };
 
+async function storageInfo(){
+  const standalone=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone;
+  let pers='unbekannt',est='';
+  try{pers=(await navigator.storage.persisted())?'ja':'nein'}catch(e){}
+  try{const e=await navigator.storage.estimate();est=' Belegt: '+(Math.round((e.usage||0)/104857.6)/10)+' MB.'}catch(e){}
+  return 'Speicherort: Speicher des Browsers auf diesem Gerät (Befunde im Local Storage, Fotos in IndexedDB), gebunden an die Adresse '+(location.origin&&location.origin!=='null'?location.origin:'dieser Seite')+'. Aktueller Modus: '+(standalone?'installierte App':'Browser-Tab')+'. Vor Löschung geschützt: '+pers+'.'+est+(!LS_OK||!IDB_OK?' ACHTUNG: Speichern ist hier blockiert.':'');
+}
 /* ---------- Sicherung (Dateien) ---------- */
 async function restoreFrom(text){
   const o=JSON.parse(text);
@@ -1078,7 +1089,7 @@ $('#b-pdf').onclick=()=>{saveNow();askSave(baseName(''),'pdf',()=>buildPdf(),'PD
 addEventListener('afterprint',printClean);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(printClean,600)});
 document.addEventListener('pointerdown',()=>{if(printing)printClean()},true);
-try{if(window.__PWA){if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js')}}catch(e){}
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();if(window.__PWA){if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js')}}catch(e){}
 start();photosLoad();stamp();
 /* Selbsttest: kann dieser Browser dauerhaft speichern? */
 (async()=>{
