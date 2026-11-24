@@ -162,6 +162,7 @@ td.ref{font:400 .78rem var(--f-mono);color:var(--muted);white-space:nowrap;paddi
       <button class="btn" id="b-print" type="button">Drucken</button>
     </div>
   </header>
+  <div class="banner" id="store-warn" role="alert" hidden style="grid-column:1/-1"></div>
   <nav class="side" id="nav" aria-label="Bereiche"></nav>
   <main id="main"></main>
 </div>
@@ -182,17 +183,32 @@ let LIGHT=false;const LV={'--surface2':'#eaeff0','--muted':'#5b6b72','--fg':'#18
 const cssv=n=>LIGHT?LV[n]:getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 let _t;
 function libGet(){try{return JSON.parse(localStorage.getItem(LIB)||'{}')||{}}catch(e){return {}}}
-function libSync(){try{const lib=libGet();lib[S.id]={t:Date.now(),name:(S.f['b.pat']||'Ohne Namen').trim(),dat:S.f['b.datum']||'',s:S};localStorage.setItem(LIB,JSON.stringify(lib))}catch(e){}}
+let LS_OK=true,IDB_OK=true;
+function lsWrite(k,v){try{localStorage.setItem(k,v);return localStorage.getItem(k)===v}catch(e){return false}}
+function libSync(){try{const lib=libGet();lib[S.id]={t:Date.now(),name:(S.f['b.pat']||'Ohne Namen').trim(),dat:S.f['b.erstdat']||S.f['b.datum']||'',s:S};return lsWrite(LIB,JSON.stringify(lib))}catch(e){return false}}
 function saveNow(){
   clearTimeout(_t);const was=S.id;
   if(!S.id&&S.f['b.pat'])S.id='b'+Date.now().toString(36);
-  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
-  if(S.id){libSync();if(!was)toast('Neuer Patient angelegt und gespeichert');photosFlush()}
-  stamp();
+  let ok=lsWrite(KEY,JSON.stringify(S));
+  if(S.id)ok=libSync()&&ok;
+  LS_OK=ok;
+  if(S.id){if(!was&&ok)toast('Neuer Patient angelegt und gespeichert');photosFlush()}
+  stamp();warnStore();
 }
-function stamp(){const el=$('#save-st');if(!el)return;el.textContent=S.id?'Gespeichert um '+new Date().toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'})+' (automatisch)':'Noch nicht gespeichert. Patientennamen eintragen oder „Neuer Befund“ wählen.'}
+function stamp(){
+  const el=$('#save-st');if(!el)return;
+  if(!LS_OK)el.textContent='Achtung: Speichern im Browser ist nicht möglich. Befund bitte als Datei sichern.';
+  else el.textContent=S.id?'Gespeichert um '+new Date().toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'})+' (automatisch)':'Noch nicht gespeichert. Patientennamen eintragen oder „Neuer Befund“ wählen.';
+}
+function warnStore(){
+  const b=$('#store-warn');if(!b)return;const bad=[];
+  if(!LS_OK)bad.push('Befunde');if(!IDB_OK)bad.push('Fotos');
+  b.hidden=!bad.length;
+  if(bad.length)b.innerHTML='<b>Dauerhaftes Speichern ist hier blockiert ('+bad.join(', ')+').</b> Der Browser oder diese Ansicht erlaubt keinen lokalen Speicher. Eingaben und Fotos gehen beim Schließen verloren. Sichere den Befund als Datei oder nutze die installierte App unter eigener Adresse. <button type="button" class="btn sm" id="sw-save">Befund als Datei speichern</button>';
+}
 /* Fotos der Haltungsanalyse: IndexedDB, je Patient und Ansicht */
 const pStored={};
+function clearPhotos(){Object.keys(pImgs).forEach(k=>delete pImgs[k]);Object.keys(pStored).forEach(k=>delete pStored[k])}
 const idb=()=>new Promise((res,rej)=>{try{const r=indexedDB.open('befund-studio',1);r.onupgradeneeded=()=>r.result.createObjectStore('photos');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}});
 const idbDo=(mode,fn)=>idb().then(d=>new Promise((res,rej)=>{const t=d.transaction('photos',mode),st=t.objectStore('photos');let out;fn(st,v=>out=v);t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error)}));
 const idbPut=(k,v)=>idbDo('readwrite',st=>st.put(v,k));
@@ -205,16 +221,21 @@ async function photosFlush(){
   for(const v of Object.keys(pImgs)){
     const key=S.id+':'+v;if(pStored[key])continue;
     try{const im=pImgs[v],c=document.createElement('canvas');c.width=Math.min(960,im.width);c.height=Math.round(c.width*im.height/im.width);
-      c.getContext('2d').drawImage(im,0,0,c.width,c.height);await idbPut(key,c.toDataURL('image/jpeg',.85));pStored[key]=1}catch(e){}
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);await idbPut(key,c.toDataURL('image/jpeg',.85));pStored[key]=1}catch(e){IDB_OK=false;warnStore()}
   }
+}
+function afterPhotos(){
+  const want=S.pos&&S.pos.view;
+  if(want&&pImgs[want])pView=want;else{const v=Object.keys(PV).find(x=>pImgs[x]);if(v)pView=v}
+  const a=haltungSec.api;if(a){a.next0&&a.next0();a.redraw&&a.redraw()}
 }
 async function photosLoad(){
   if(!S.id)return;
   for(const v of Object.keys(PV)){
     try{const d=await idbGet(S.id+':'+v);
-      if(d)await new Promise(r=>{const im=new Image();im.onload=()=>{pImgs[v]=im;pStored[S.id+':'+v]=1;r()};im.onerror=r;im.src=d})}catch(e){}
+      if(d)await new Promise(r=>{const im=new Image();im.onload=()=>{pImgs[v]=im;pStored[S.id+':'+v]=1;r()};im.onerror=r;im.src=d})}catch(e){IDB_OK=false;warnStore()}
   }
-  const a=haltungSec.api;if(a&&a.redraw)a.redraw();
+  afterPhotos();
 }
 function save(){clearTimeout(_t);_t=setTimeout(saveNow,300)}
 addEventListener('pagehide',()=>saveNow());
@@ -312,7 +333,35 @@ function buildText(){
 }
 
 /* ---------- Datei speichern (TXT, PDF) ---------- */
-const fname=(pre,ext)=>{const n=(S.f['b.pat']||'').trim().replace(/[^\wäöüÄÖÜß-]+/g,'_').replace(/^_+|_+$/g,'');return pre+(n?'_'+n:'')+'_'+(S.f['b.datum']||new Date().toISOString().slice(0,10))+'.'+ext};
+const baseName=suf=>{const n=(S.f['b.pat']||'').trim().replace(/[^\wäöüÄÖÜß-]+/g,'_').replace(/^_+|_+$/g,'');return (n||'Befund')+'_'+(S.f['b.erstdat']||S.f['b.datum']||new Date().toISOString().slice(0,10))+(suf?'_'+suf:'')};
+function askSave(base,ext,getData,title,hint){
+  modal(title||'Datei speichern',`<p class="hint">${hint||'Vorschlag aus Name und Datum der Erstbehandlung. Du kannst den Dateinamen ändern.'}</p><div class="f"><label for="fs-name">Dateiname (.${ext})</label><input id="fs-name" type="text" value="${esc(base)}" autocomplete="off"></div>`,[
+    {l:'Speichern',pri:true,f:async()=>{
+      let n=($('#fs-name').value||'').trim()||base;n=n.replace(/[\\/:*?"<>|]+/g,'_').replace(new RegExp('\\.'+ext+'$','i'),'')+'.'+ext;
+      const btn=$('#m-btns .btn.pri');if(btn){btn.disabled=true;btn.textContent='Erstelle Datei …'}
+      try{const d=await getData();const r=await saveFile(n,d);return r===false?true:undefined}
+      catch(e){toast('Datei konnte nicht erstellt werden: '+(e&&e.message||e));LIGHT=false;bcRedraw();return true}
+      finally{if(btn){btn.disabled=false;btn.textContent='Speichern'}}
+    }}]);
+  const i=$('#fs-name');if(i){i.focus();i.select()}
+}
+function photoURLs(prefix){
+  const o={};
+  Object.keys(pImgs).forEach(v=>{const im=pImgs[v],c=document.createElement('canvas');c.width=Math.min(960,im.width);c.height=Math.round(c.width*im.height/im.width);c.getContext('2d').drawImage(im,0,0,c.width,c.height);o[prefix+':'+v]=c.toDataURL('image/jpeg',.85)});
+  return o;
+}
+async function packCurrent(){
+  saveNow();await photosFlush();
+  const id=S.id||'cur',lib={};
+  if(S.id)lib[S.id]={t:Date.now(),name:(S.f['b.pat']||'Ohne Namen').trim(),dat:S.f['b.erstdat']||S.f['b.datum']||'',s:S};
+  return JSON.stringify({app:'befund-studio',v:2,lib,cur:S,photos:photoURLs(id)});
+}
+async function packAll(){
+  saveNow();await photosFlush();
+  let photos={};try{photos=await idbAll()}catch(e){}
+  Object.assign(photos,photoURLs(S.id||'cur'));
+  return JSON.stringify({app:'befund-studio',v:2,lib:libGet(),cur:S,photos});
+}
 async function saveFile(name,data){
   try{
     const dl=(window.claude&&claude.use)?await claude.use('downloads'):null;
@@ -333,7 +382,7 @@ async function saveFile(name,data){
 reg('basis','Basisdaten',true,'immer enthalten',`
 <div class="banner" style="margin-bottom:14px">Die Daten bleiben nur auf diesem Gerät. Vor dem Einsatz mit echten Patientendaten Datenschutz und Gerätesicherung (Sperrcode, Verschlüsselung) klären.</div>
 <div class="grid">
-${T('b.datum','Datum','date')}${T('b.pat','Patient/in (Kürzel oder Übungsname)')}${T('b.geb','Geburtsdatum','date')}
+${T('b.erstdat','Datum der Erstbehandlung','date')}${T('b.datum','Befunddatum','date')}${T('b.pat','Patient/in (Kürzel oder Übungsname)')}${T('b.geb','Geburtsdatum','date')}
 ${SEL('b.sex','Geschlecht',['weiblich','männlich','divers'])}${T('b.beruf','Beruf / Arbeitsplatz')}${T('b.sport','Freizeit / Sport')}
 ${SEL('b.hand','Händigkeit',['rechts','links','beidhändig'])}${T('b.gr','Größe (cm)','number')}${T('b.gew','Gewicht (kg)','number')}
 ${T('b.thera','Therapeut/in')}${T('b.zuw','Zuweisung durch')}${T('b.dx','Medizinische Diagnose')}
@@ -647,7 +696,7 @@ haltungSec.init=function(){
   cv.addEventListener('pointermove',e=>{if(pDrag<0)return;const q=pos(e);pst(pView).pts[pDrag]=[q[0]/PW,q[1]/PW];draw();res()});
   const up=()=>{if(pDrag>=0){pDrag=-1;save();redraw()}};
   cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
-  $('#po-views').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;pView=b.dataset.v;pAct=0;next0();redraw()};
+  $('#po-views').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;pView=b.dataset.v;S.pos.view=pView;save();pAct=0;next0();redraw()};
   const next0=()=>{const p=pst(pView).pts;pAct=0;for(let i=0;i<PV[pView].pts.length;i++)if(!p[i]){pAct=i;return}};
   $('#po-list').onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;pAct=+b.dataset.i;redraw()};
   $('#po-rm').onclick=()=>{delete pst(pView).pts[pAct];save();redraw()};
@@ -775,7 +824,7 @@ async function buildPdf(){
   const fd=d=>d?new Date(d).toLocaleDateString('de-AT'):'';
   doc.text(pdfSan(F['b.pat']||'Ohne Namen'),M,y);
   T('',10,'normal');
-  const sub=[F['b.geb']?'geb. '+fd(F['b.geb']):'',F['b.datum']?'Befund vom '+fd(F['b.datum']):'',F['b.thera']?'Therapeut/in: '+F['b.thera']:''].filter(Boolean).join('  |  ');
+  const sub=[F['b.geb']?'geb. '+fd(F['b.geb']):'',F['b.erstdat']?'Erstbehandlung '+fd(F['b.erstdat']):'',F['b.datum']?'Befund vom '+fd(F['b.datum']):'',F['b.thera']?'Therapeut/in: '+F['b.thera']:''].filter(Boolean).join('  |  ');
   if(sub){y+=5;doc.text(pdfSan(sub),M,y)}
   y+=4;doc.setDrawColor(15,107,115);doc.setLineWidth(.6);doc.line(M,y,PWm-M,y);y+=6;
   /* Abschnitte */
@@ -877,61 +926,86 @@ function buildNav(){
     if(e.target.checked){el.scrollIntoView({behavior:'smooth',block:'start'});const s=SECS.find(x=>x.id===m);if(s&&s.redraw)s.redraw()}};
 }
 function romVis(){$$('tr[data-reg]').forEach(tr=>tr.hidden=!S.f['romreg.'+tr.dataset.reg])}
+let _started=false;
 function start(){
   $('#main').innerHTML=SECS.map(s=>`<section class="card" id="sec-${s.id}"${(!s.fixed&&!S.mods[s.id])?' hidden':''}><header><h2>${s.name}</h2><span class="sub">${s.sub}</span></header><div class="body">${s.html}</div></section>`).join('');
   bind($('#main'));buildNav();
   SECS.forEach(s=>s.init&&s.init());
-  hooks.push(k=>{if(String(k).startsWith('romreg.'))romVis()});
+  if(!_started){
+    _started=true;
+    hooks.push(k=>{if(String(k).startsWith('romreg.'))romVis()});
+    try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{bcRedraw();const h=SECS.find(x=>x.id==='haltung');h&&h.redraw&&h.redraw()})}catch(e){}
+  }
   romVis();hooks.forEach(h=>h(''));
-  try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{bcRedraw();const h=SECS.find(x=>x.id==='haltung');h&&h.redraw&&h.redraw()})}catch(e){}
+}
+/* Oberfläche neu aufbauen (neuer Patient, Befund öffnen, Wiederherstellen) ohne Seite neu zu laden */
+function rerender(){
+  clearPhotos();
+  pView=(S.pos&&S.pos.view)||'side';pAct=0;bcType=0;
+  start();photosLoad();stamp();warnStore();
 }
 $('#b-export').onclick=()=>{
   const txt=buildText();
-  modal('Befund als Text',`<p class="hint">Enthält alle sichtbaren Bereiche mit ausgefüllten Feldern.</p><textarea id="m-ta" readonly></textarea>`,[{l:'Als TXT-Datei speichern',pri:true,f:async()=>{await saveFile(fname('Befund','txt'),txt);return true}},{l:'Kopieren',f:()=>{copyText(txt,$('#m-ta'));return true}}]);
-  $('#m-ta').value=txt;
+  askSave(baseName(''),'txt',()=>txt,'Befund als TXT-Datei speichern');
 };
 
 /* ---------- Gespeicherte Befunde (nur auf diesem Gerät) ---------- */
 $('#b-lib').onclick=()=>{
   saveNow();
   const lib=libGet(),ids=Object.keys(lib).sort((a,b)=>lib[b].t-lib[a].t);
-  const rows=ids.map(id=>`<div class="lrow"><div><b>${esc(lib[id].name)}</b><div class="hint">${lib[id].dat?esc(lib[id].dat)+' · ':''}zuletzt gespeichert ${new Date(lib[id].t).toLocaleString('de-AT')}${id===S.id?' · aktuell geöffnet':''}</div></div><div class="tools"><button type="button" class="btn sm" data-open="${id}">Öffnen</button><button type="button" class="btn sm" data-del="${id}">Löschen</button></div></div>`).join('')||'<p class="hint">Noch kein Befund gespeichert. Sobald du bei den Basisdaten einen Patienten-Namen einträgst, wird der Befund automatisch hier abgelegt.</p>';
+  const rows=ids.map(id=>`<div class="lrow"><div><b>${esc(lib[id].name)}</b><div class="hint">${lib[id].dat?'Erstbehandlung '+esc(lib[id].dat)+' · ':''}zuletzt gespeichert ${new Date(lib[id].t).toLocaleString('de-AT')}${id===S.id?' · aktuell geöffnet':''}</div></div><div class="tools"><button type="button" class="btn sm" data-open="${id}">Öffnen</button><button type="button" class="btn sm" data-del="${id}">Löschen</button></div></div>`).join('')||'<p class="hint">Noch kein Befund gespeichert. Sobald du bei den Basisdaten einen Patienten-Namen einträgst, wird der Befund automatisch hier abgelegt.</p>';
   modal('Gespeicherte Befunde',`<p class="hint">Die Befunde liegen nur auf diesem Gerät, in diesem Browser. Sie werden beim Tippen automatisch gespeichert. Für ein Backup „Sicherung“ nutzen.</p><div id="lib-list">${rows}</div>`,[]);
-  $('#lib-list').onclick=e=>{
+  $('#lib-list').onclick=async e=>{
     const o=e.target.closest('[data-open]'),d=e.target.closest('[data-del]');
-    if(o){const id=o.dataset.open;S=JSON.parse(JSON.stringify(lib[id].s));S.id=id;S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};saveNow();location.reload()}
+    if(o){const id=o.dataset.open;saveNow();clearPhotos();S=JSON.parse(JSON.stringify(lib[id].s));S.id=id;S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};saveNow();$('#modal-root').innerHTML='';rerender()}
     if(d){if(!d.dataset.arm){d.dataset.arm=1;d.textContent='Wirklich löschen?';return}
-      const id=d.dataset.del,l=libGet();delete l[id];try{localStorage.setItem(LIB,JSON.stringify(l))}catch(x){}
-      idbDelPrefix(id+':');if(S.id===id)S.id=null;d.closest('.lrow').remove();toast('Befund gelöscht')}
+      const id=d.dataset.del,l=libGet();delete l[id];lsWrite(LIB,JSON.stringify(l));
+      idbDelPrefix(id+':');if(S.id===id){S.id=null;stamp()}d.closest('.lrow').remove();toast('Befund gelöscht')}
   };
 };
 
-/* ---------- Sicherung aller Befunde ---------- */
-$('#b-backup').onclick=async()=>{
-  saveNow();await photosFlush();
-  let photos={};try{photos=await idbAll()}catch(e){}
-  const json=JSON.stringify({app:'befund-studio',lib:libGet(),cur:S,photos});
-  modal('Sicherung',`<p class="hint">Die Sicherung enthält alle gespeicherten Befunde samt Haltungsfotos und wird als TXT-Datei gespeichert. Zum Wiederherstellen die Datei auswählen. Vorhandene Befunde bleiben erhalten.</p><div class="f" style="margin-bottom:10px"><label for="m-file">Sicherungsdatei auswählen</label><input id="m-file" type="file" accept=".txt,.json,text/plain"></div><textarea id="m-ta" placeholder="Inhalt der Sicherung"></textarea>`,[
-    {l:'Sicherung als Datei speichern',pri:true,f:async()=>{await saveFile('Befund-Studio-Sicherung_'+new Date().toISOString().slice(0,10)+'.txt',$('#m-ta').value);return true}},
-    {l:'Wiederherstellen',f:async()=>{try{
-      const o=JSON.parse($('#m-ta').value);
-      if(o&&o.photos)for(const k of Object.keys(o.photos))await idbPut(k,o.photos[k]);
-      if(o&&o.lib){const l=libGet();Object.assign(l,o.lib);localStorage.setItem(LIB,JSON.stringify(l));if(o.cur&&o.cur.f)S=o.cur}
-      else if(o&&o.f)S=o;else throw 0;
-      S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};saveNow();location.reload();return
-    }catch(e){toast('Sicherung nicht lesbar');return true}}}]);
-  $('#m-ta').value=json;
-  $('#m-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$('#m-ta').value=String(rd.result);toast('Datei eingelesen, jetzt „Wiederherstellen“ wählen')};rd.readAsText(f)};
+/* ---------- Sicherung (Dateien) ---------- */
+async function restoreFrom(text){
+  const o=JSON.parse(text);
+  const cur=o&&o.cur&&o.cur.f?o.cur:(o&&o.f?o:null);
+  if(!o||(!cur&&!o.lib))throw new Error('Format');
+  const photos=o.photos||{},map={};
+  if(cur&&!cur.id)cur.id='b'+Date.now().toString(36);
+  Object.keys(photos).forEach(k=>{map[(k.startsWith('cur:')&&cur)?cur.id+k.slice(3):k]=photos[k]});
+  if(o.lib){const l=libGet();Object.assign(l,o.lib);lsWrite(LIB,JSON.stringify(l))}
+  for(const k of Object.keys(map)){try{await idbPut(k,map[k])}catch(e){IDB_OK=false}}
+  if(cur){S=cur;S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{}}
+  rerender();
+  /* Fotos zusätzlich direkt in den Arbeitsspeicher, falls der lokale Speicher blockiert ist */
+  for(const v of Object.keys(PV)){const d=map[S.id+':'+v];if(d)await new Promise(r=>{const im=new Image();im.onload=()=>{pImgs[v]=im;r()};im.onerror=r;im.src=d})}
+  afterPhotos();saveNow();
+}
+$('#b-backup').onclick=()=>{
+  let loaded=null;
+  modal('Sicherung',`<p class="hint">Sicherungen sind TXT-Dateien mit Befunddaten und Haltungsfotos. Zum Wiederherstellen eine solche Datei auswählen. Vorhandene Befunde bleiben erhalten.</p>
+  <div class="f" style="margin-bottom:10px"><label for="m-file">Sicherungsdatei auswählen</label><input id="m-file" type="file" accept=".txt,.json,text/plain"></div><p class="hint" id="m-info"></p>`,[
+    {l:'Aktuellen Patienten speichern',pri:true,f:()=>{modalChain(()=>askSave(baseName('Sicherung'),'txt',packCurrent,'Patient als Datei speichern','Enthält den geöffneten Befund mit Fotos. Vorschlag aus Name und Datum der Erstbehandlung.'))}},
+    {l:'Alle Befunde speichern',f:()=>{modalChain(()=>askSave('Alle-Befunde_'+new Date().toISOString().slice(0,10),'txt',packAll,'Alle Befunde als Datei speichern','Enthält alle Befunde auf diesem Gerät mit Fotos.'))}},
+    {l:'Wiederherstellen',f:async()=>{
+      if(!loaded){toast('Bitte zuerst eine Sicherungsdatei auswählen');return true}
+      try{await restoreFrom(loaded);toast('Wiederhergestellt')}catch(e){toast('Datei nicht lesbar');return true}}}]);
+  $('#m-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{loaded=String(rd.result);$('#m-info').textContent='Datei eingelesen: '+f.name+'. Jetzt „Wiederherstellen“ wählen.'};rd.readAsText(f)};
 };
+/* Dialog schließen und danach einen neuen öffnen */
+function modalChain(fn){setTimeout(fn,0)}
+document.addEventListener('click',e=>{if(e.target&&e.target.id==='sw-save')askSave(baseName('Sicherung'),'txt',packCurrent,'Patient als Datei speichern','Enthält den geöffneten Befund mit Fotos. Vorschlag aus Name und Datum der Erstbehandlung.')});
+
+/* ---------- Neuer Patient: sofort speichern ---------- */
 $('#b-new').onclick=()=>{
   saveNow();
   const loose=!S.id&&Object.keys(S.f).some(k=>S.f[k]);
   modal('Neuen Patienten anlegen',`<p class="hint">Der Befund wird sofort gespeichert und danach automatisch aktualisiert. Den aktuell geöffneten Befund findest du unter „Gespeicherte Befunde“.${loose?' Der aktuelle Befund hat noch keinen Namen und wird nicht gespeichert.':''}</p>
-  <div class="grid"><div class="f"><label for="np-name">Patient/in (Kürzel oder Übungsname)</label><input id="np-name" type="text" autocomplete="off"></div><div class="f"><label for="np-date">Befunddatum</label><input id="np-date" type="date"></div></div>`,[
+  <div class="grid"><div class="f"><label for="np-name">Patient/in (Kürzel oder Übungsname)</label><input id="np-name" type="text" autocomplete="off"></div><div class="f"><label for="np-date">Datum der Erstbehandlung</label><input id="np-date" type="date"></div></div>`,[
     {l:'Speichern und beginnen',pri:true,f:()=>{
       const n=$('#np-name').value.trim();if(!n){toast('Bitte einen Namen oder ein Kürzel eingeben');$('#np-name').focus();return true}
-      S=fresh();S.f['b.pat']=n;S.f['b.datum']=$('#np-date').value||new Date().toISOString().slice(0,10);S.id='b'+Date.now().toString(36);
-      saveNow();location.reload();return true}}]);
+      const d=$('#np-date').value||new Date().toISOString().slice(0,10);
+      clearPhotos();S=fresh();S.f['b.pat']=n;S.f['b.erstdat']=d;S.f['b.datum']=d;S.id='b'+Date.now().toString(36);
+      saveNow();rerender()}}]);
   $('#np-date').value=new Date().toISOString().slice(0,10);$('#np-name').focus();
   $('#np-name').addEventListener('keydown',e=>{if(e.key==='Enter')$('#m-btns .btn.pri').click()});
 };
@@ -1000,17 +1074,19 @@ $('#b-print').onclick=()=>{
   saveNow();printPrep();
   setTimeout(()=>{try{window.print()}catch(e){toast('Drucken ist hier nicht verfügbar')}},250);
 };
-$('#b-pdf').onclick=async e=>{
-  const b=e.currentTarget,old=b.textContent;b.disabled=true;b.textContent='Erstelle PDF …';saveNow();
-  try{const blob=await buildPdf();await saveFile(fname('Befund','pdf'),blob)}
-  catch(err){LIGHT=false;bcRedraw();toast('PDF konnte nicht erstellt werden: '+(err&&err.message||err))}
-  finally{b.disabled=false;b.textContent=old}
-};
+$('#b-pdf').onclick=()=>{saveNow();askSave(baseName(''),'pdf',()=>buildPdf(),'PDF speichern')};
 addEventListener('afterprint',printClean);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(printClean,600)});
 document.addEventListener('pointerdown',()=>{if(printing)printClean()},true);
 try{if(window.__PWA){if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js')}}catch(e){}
 start();photosLoad();stamp();
+/* Selbsttest: kann dieser Browser dauerhaft speichern? */
+(async()=>{
+  const ok=lsWrite('befund-probe','1');try{localStorage.removeItem('befund-probe')}catch(e){}
+  LS_OK=ok;
+  try{await idbPut('probe','1');await idbDel('probe');IDB_OK=true}catch(e){IDB_OK=false}
+  stamp();warnStore();
+})();
 </script>
 
 </body></html>
