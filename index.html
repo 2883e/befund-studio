@@ -150,20 +150,23 @@ td.ref{font:400 .78rem var(--f-mono);color:var(--muted);white-space:nowrap;paddi
   <header class="top">
     <div>
       <h1>Befund Studio</h1>
-      <small>Physiotherapeutischer Befund nach Maitland-Konzept · Prototyp, nur mit Übungsdaten verwenden</small>
+      <small>Physiotherapeutischer Befund nach Maitland-Konzept</small>
+      <small id="save-st" role="status"></small>
     </div>
     <div class="tools">
       <button class="btn" id="b-new" type="button">Neuer Befund</button>
       <button class="btn" id="b-lib" type="button">Gespeicherte Befunde</button>
       <button class="btn" id="b-backup" type="button">Sicherung</button>
-      <button class="btn" id="b-export" type="button">Als Text</button>
-      <button class="btn pri" id="b-print" type="button">Drucken / PDF</button>
+      <button class="btn" id="b-export" type="button">Als TXT</button>
+      <button class="btn pri" id="b-pdf" type="button">PDF speichern</button>
+      <button class="btn" id="b-print" type="button">Drucken</button>
     </div>
   </header>
   <nav class="side" id="nav" aria-label="Bereiche"></nav>
   <main id="main"></main>
 </div>
 <div id="modal-root"></div>
+<script src="jspdf.umd.min.js"></script>
 <script>
 /* ---------- Kern ---------- */
 const KEY='befund-studio-v1';
@@ -180,7 +183,39 @@ const cssv=n=>LIGHT?LV[n]:getComputedStyle(document.documentElement).getProperty
 let _t;
 function libGet(){try{return JSON.parse(localStorage.getItem(LIB)||'{}')||{}}catch(e){return {}}}
 function libSync(){try{const lib=libGet();lib[S.id]={t:Date.now(),name:(S.f['b.pat']||'Ohne Namen').trim(),dat:S.f['b.datum']||'',s:S};localStorage.setItem(LIB,JSON.stringify(lib))}catch(e){}}
-function saveNow(){clearTimeout(_t);if(!S.id&&S.f['b.pat'])S.id='b'+Date.now().toString(36);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(S.id)libSync()}
+function saveNow(){
+  clearTimeout(_t);const was=S.id;
+  if(!S.id&&S.f['b.pat'])S.id='b'+Date.now().toString(36);
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  if(S.id){libSync();if(!was)toast('Neuer Patient angelegt und gespeichert');photosFlush()}
+  stamp();
+}
+function stamp(){const el=$('#save-st');if(!el)return;el.textContent=S.id?'Gespeichert um '+new Date().toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'})+' (automatisch)':'Noch nicht gespeichert. Patientennamen eintragen oder „Neuer Befund“ wählen.'}
+/* Fotos der Haltungsanalyse: IndexedDB, je Patient und Ansicht */
+const pStored={};
+const idb=()=>new Promise((res,rej)=>{try{const r=indexedDB.open('befund-studio',1);r.onupgradeneeded=()=>r.result.createObjectStore('photos');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}});
+const idbDo=(mode,fn)=>idb().then(d=>new Promise((res,rej)=>{const t=d.transaction('photos',mode),st=t.objectStore('photos');let out;fn(st,v=>out=v);t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error)}));
+const idbPut=(k,v)=>idbDo('readwrite',st=>st.put(v,k));
+const idbGet=k=>idbDo('readonly',(st,o)=>{const r=st.get(k);r.onsuccess=()=>o(r.result)});
+const idbDel=k=>idbDo('readwrite',st=>st.delete(k));
+const idbAll=()=>idbDo('readonly',(st,o)=>{const out={};const r=st.openCursor();r.onsuccess=()=>{const c=r.result;if(c){out[c.key]=c.value;c.continue()}else o(out)}}).then(x=>x||{});
+async function idbDelPrefix(p){try{const all=await idbAll();for(const k of Object.keys(all))if(k.startsWith(p))await idbDel(k)}catch(e){}}
+async function photosFlush(){
+  if(!S.id)return;
+  for(const v of Object.keys(pImgs)){
+    const key=S.id+':'+v;if(pStored[key])continue;
+    try{const im=pImgs[v],c=document.createElement('canvas');c.width=Math.min(960,im.width);c.height=Math.round(c.width*im.height/im.width);
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);await idbPut(key,c.toDataURL('image/jpeg',.85));pStored[key]=1}catch(e){}
+  }
+}
+async function photosLoad(){
+  if(!S.id)return;
+  for(const v of Object.keys(PV)){
+    try{const d=await idbGet(S.id+':'+v);
+      if(d)await new Promise(r=>{const im=new Image();im.onload=()=>{pImgs[v]=im;pStored[S.id+':'+v]=1;r()};im.onerror=r;im.src=d})}catch(e){}
+  }
+  const a=haltungSec.api;if(a&&a.redraw)a.redraw();
+}
 function save(){clearTimeout(_t);_t=setTimeout(saveNow,300)}
 addEventListener('pagehide',()=>saveNow());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
@@ -220,15 +255,16 @@ const SECS=[];
 const reg=(id,name,fixed,sub,html,init)=>SECS.push({id,name,fixed,sub,html,init});
 
 /* ---------- Dialog ---------- */
-function modal(title,body,buttons){
+function modal(title,body,buttons,onclose){
   const root=$('#modal-root');
   root.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div><h2>${title}</h2>${body}<div class="tools" id="m-btns"></div></div></div>`;
   const box=$('#m-btns');
+  const close=()=>{root.innerHTML='';onclose&&onclose()};
   buttons.concat([{l:'Schließen',f:()=>{}}]).forEach(b=>{
     const el=document.createElement('button');el.type='button';el.className='btn'+(b.pri?' pri':'');el.textContent=b.l;
-    el.onclick=()=>{const keep=b.f();if(keep!==true)root.innerHTML=''};box.appendChild(el);
+    el.onclick=async()=>{const keep=await b.f();if(keep!==true)close()};box.appendChild(el);
   });
-  const bg=$('.modal',root);bg.addEventListener('mousedown',e=>{if(e.target===bg)root.innerHTML=''});
+  const bg=$('.modal',root);bg.addEventListener('mousedown',e=>{if(e.target===bg)close()});
 }
 function copyText(txt,ta){
   const fb=()=>{ta.focus();ta.select();toast('Text markiert, mit Strg+C kopieren')};
@@ -273,6 +309,25 @@ function buildText(){
     if(lines.length){L.push('=== '+s.name.toUpperCase()+' ===',...lines,'')}
   });
   return L.join('\n');
+}
+
+/* ---------- Datei speichern (TXT, PDF) ---------- */
+const fname=(pre,ext)=>{const n=(S.f['b.pat']||'').trim().replace(/[^\wäöüÄÖÜß-]+/g,'_').replace(/^_+|_+$/g,'');return pre+(n?'_'+n:'')+'_'+(S.f['b.datum']||new Date().toISOString().slice(0,10))+'.'+ext};
+async function saveFile(name,data){
+  try{
+    const dl=(window.claude&&claude.use)?await claude.use('downloads'):null;
+    if(dl){await dl.save({filename:name,data});toast('Datei gespeichert');return true}
+  }catch(e){if(e&&e.code==='declined')return false}
+  const type=name.endsWith('.pdf')?'application/pdf':'text/plain;charset=utf-8';
+  const blob=data instanceof Blob?data:new Blob([data],{type});
+  try{
+    const file=new File([blob],name,{type:blob.type});
+    if(matchMedia('(pointer:coarse)').matches&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:name});return true}catch(e){if(e&&e.name==='AbortError')return false}
+    }
+  }catch(e){}
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);toast('Datei wird gespeichert');return true;
 }
 /* ---------- Basisdaten (immer) ---------- */
 reg('basis','Basisdaten',true,'immer enthalten',`
@@ -494,8 +549,8 @@ hooks.push(k=>{for(let i=1;i<=6;i++){const l=parseFloat(S.f['ly.'+i+'.l']),r=par
 /* ---------- Modul: Digitale Haltungsanalyse ---------- */
 const PV={
  side:{n:'Seitlich',pts:['Tragus (Ohr)','C7 (Dornfortsatz)','Akromion','Trochanter major','Knie (lat. Gelenkspalt)','Malleolus lateralis']},
- front:{n:'Frontal (von vorn)',pts:['Ohr, Bild links','Ohr, Bild rechts','Akromion, Bild links','Akromion, Bild rechts','Beckenkamm, Bild links','Beckenkamm, Bild rechts','Patella, Bild links','Patella, Bild rechts','Malleolus, Bild links','Malleolus, Bild rechts','Kopfmitte (Glabella)','Rumpfmitte (Sternum)']},
- back:{n:'Dorsal (von hinten)',pts:['Ohr, Bild links','Ohr, Bild rechts','Akromion, Bild links','Akromion, Bild rechts','Beckenkamm, Bild links','Beckenkamm, Bild rechts','Knie (Kniekehle), Bild links','Knie (Kniekehle), Bild rechts','Malleolus, Bild links','Malleolus, Bild rechts','Kopfmitte (Protub. occ.)','Rumpfmitte (Dornfortsatz)']}
+ front:{n:'Frontal (von vorn)',pts:['Ohr, Bild links','Ohr, Bild rechts','Akromion, Bild links','Akromion, Bild rechts','Becken (Hüfte), Bild links','Becken (Hüfte), Bild rechts','Patella, Bild links','Patella, Bild rechts','Malleolus, Bild links','Malleolus, Bild rechts','Kopfmitte (Glabella)','Rumpfmitte (Sternum)']},
+ back:{n:'Dorsal (von hinten)',pts:['Ohr, Bild links','Ohr, Bild rechts','Akromion, Bild links','Akromion, Bild rechts','Becken (Hüfte), Bild links','Becken (Hüfte), Bild rechts','Knie (Kniekehle), Bild links','Knie (Kniekehle), Bild rechts','Malleolus, Bild links','Malleolus, Bild rechts','Kopfmitte (Protub. occ.)','Rumpfmitte (Dornfortsatz)']}
 };
 const PW=640;let pView='side',pAct=0,pDrag=-1;const pImgs={};
 const pst=v=>(S.pos[v]=S.pos[v]||{pts:{},cm:''});
@@ -523,14 +578,16 @@ function pMetrics(v){
 }
 const POSTURE_CH=['Kopf vorgeschoben','Schultern protrahiert','Hyperkyphose BWS','Flachrücken','Hyperlordose LWS','Becken ant. gekippt','Becken post. gekippt','Genu recurvatum','Genu valgum','Genu varum','Skoliose-Hinweis','Schulterhochstand','Beckenschiefstand','Rumpfverschiebung','Pes planus','Pes cavus','Hallux valgus'];
 reg('haltung','Haltungsanalyse',false,'digital, mit Foto',`
-<p class="hint">Foto laden, Landmarken nacheinander antippen, Punkte lassen sich per Ziehen korrigieren. Fotos werden nicht gespeichert, die gesetzten Punkte und Ergebnisse schon.</p>
+<p class="hint">Foto laden, Landmarken nacheinander antippen, Punkte lassen sich per Ziehen korrigieren. Fotos, gesetzte Punkte und Ergebnisse werden zusammen mit dem Befund auf diesem Gerät gespeichert, sobald der Befund einen Patientennamen hat.</p>
 <div class="tools" style="margin-bottom:10px" id="po-views"></div>
 <div class="grid" style="margin-bottom:12px">
-  <div class="f"><label for="po-file">Foto</label><input id="po-file" type="file" accept="image/*"></div>
+  <div class="f"><label for="po-file">Foto aus Galerie / Datei</label><input id="po-file" type="file" accept="image/*"></div>
   ${SEL('po.face','Blickrichtung im Foto (seitlich)',['rechts','links'])}
   <div class="f"><label for="po-cm">Maßstab: Abstand Maßstab 1 – 2 (cm)</label><input id="po-cm" type="number" step="0.1" placeholder="z. B. 100"></div>
   <div class="chips" style="align-self:end;padding-bottom:6px" data-title="Anzeige">${CH('po.grid','Raster einblenden')}</div>
 </div>
+<div class="tools" style="margin-bottom:10px"><button type="button" class="btn" id="po-snap">Foto aufnehmen</button><button type="button" class="btn" id="po-del">Foto entfernen</button><button type="button" class="btn" id="po-live">Live-Kamera mit Hilfslinien</button><button type="button" class="btn pri" id="po-auto">Automatisch analysieren</button><input id="po-cam" type="file" accept="image/*" capture="environment" hidden></div>
+<p class="hint" id="po-auto-msg">Die automatische Analyse setzt Ohr, Schulter, Hüfte, Knie und Knöchel als Vorschlag. Kontrolliere die Punkte und ziehe sie bei Bedarf zurecht. C7 setzt du von Hand.</p>
 <div class="legend" id="po-list"></div>
 <div class="posture-wrap"><canvas id="po-cv" style="height:auto" width="640" height="800" aria-label="Foto mit Landmarken"></canvas></div>
 <div class="tools" style="margin-top:8px"><button type="button" class="btn sm" id="po-rm">Aktiven Punkt entfernen</button><button type="button" class="btn sm" id="po-clr">Alle Punkte dieser Ansicht löschen</button></div>
@@ -555,8 +612,8 @@ haltungSec.init=function(){
     const m=pMetrics(pView);
     $('#po-res').innerHTML=m.length?m.map(x=>`<div><span>${x[0]}</span><b>${x[1]}</b></div>`).join(''):'<div><span>Noch keine Auswertung: Punkte setzen</span></div>';
   }
-  function draw(){
-    const im=pImgs[pView],H=im?Math.round(PW*im.height/im.width):800;
+  function render(pView,cv,pAct){
+    const c=cv.getContext('2d'),im=pImgs[pView],H=im?Math.round(PW*im.height/im.width):800;
     if(cv.width!==PW||cv.height!==H){cv.width=PW;cv.height=H}
     const acc=cssv('--accent').trim(),warn=cssv('--warn').trim();
     c.fillStyle='#8a979c';c.fillRect(0,0,PW,H);
@@ -576,6 +633,7 @@ haltungSec.init=function(){
     Object.entries(P).forEach(([i,p])=>{c.fillStyle=(+i===pAct)?'#ffd84a':'#ffffff';c.strokeStyle='#18242a';c.lineWidth=2;c.beginPath();c.arc(p[0],p[1],7,0,7);c.fill();c.stroke();
       c.fillStyle='#18242a';c.font='600 11px sans-serif';c.textAlign='center';c.fillText(+i+1,p[0],p[1]+4)});
   }
+  function draw(){render(pView,cv,pAct)}
   const redraw=()=>{draw();res();list()};
   const pos=e=>{const r=cv.getBoundingClientRect(),k=cv.width/r.width;return [(e.clientX-r.left)*k,(e.clientY-r.top)*k]};
   cv.addEventListener('pointerdown',e=>{
@@ -597,12 +655,198 @@ haltungSec.init=function(){
   $('#po-cm').addEventListener('input',e=>{pst(pView).cm=e.target.value;save();res();draw()});
   $('#po-file').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;const rd=new FileReader();
-    rd.onload=()=>{const im=new Image();im.onload=()=>{pImgs[pView]=im;redraw();toast('Foto geladen')};im.src=rd.result};rd.readAsDataURL(f);
+    rd.onload=()=>{const im=new Image();im.onload=()=>{setPhoto(im);toast('Foto geladen')};im.src=rd.result};rd.readAsDataURL(f);
   });
   hooks.push(k=>{if(k==='po.grid'||k==='po.face')redraw()});
   next0();redraw();
   haltungSec.redraw=redraw;
+  haltungSec.api={render:(v,c2)=>render(v,c2,-1),redraw,next0,list,res};
 };
+/* ---------- Haltungsanalyse: Kamera und automatische Analyse ---------- */
+function setPhoto(img){pImgs[pView]=img;if(S.id)delete pStored[S.id+':'+pView];photosFlush();const a=haltungSec.api;a&&a.redraw()}
+function fileToImage(f){
+  const rd=new FileReader();
+  rd.onload=()=>{const im=new Image();im.onload=()=>{setPhoto(im);toast('Foto geladen')};im.src=rd.result};
+  rd.readAsDataURL(f);
+}
+let camStream=null,camFacing='environment';
+function camStop(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}}
+async function camStart(){
+  camStop();
+  const v=$('#cam-v');
+  camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:camFacing},width:{ideal:1920},height:{ideal:1080}},audio:false});
+  v.srcObject=camStream;await v.play().catch(()=>{});
+}
+function openCamera(){
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){toast('Live-Kamera nicht verfügbar, Foto wird über die Kamera-App aufgenommen');$('#po-cam').click();return}
+  modal('Live-Kamera',`<p class="hint">Patient im Ganzkörperbild entspannt stehen lassen. Die Mittellinie hilft beim Ausrichten, die Querlinien bei der Höhe. Kamera auf Höhe von Becken oder Brustbein halten, Abstand 2–3 m.</p>
+  <div style="position:relative;background:#000;border-radius:8px;overflow:hidden"><video id="cam-v" playsinline muted style="width:100%;max-height:60vh;display:block;object-fit:contain"></video>
+  <div style="position:absolute;inset:0;pointer-events:none"><div style="position:absolute;left:50%;top:0;bottom:0;border-left:2px dashed rgba(255,255,255,.8)"></div>
+  <div style="position:absolute;top:33%;left:0;right:0;border-top:1px solid rgba(255,255,255,.45)"></div><div style="position:absolute;top:66%;left:0;right:0;border-top:1px solid rgba(255,255,255,.45)"></div></div></div>`,[
+    {l:'Aufnehmen',pri:true,f:()=>{
+      const v=$('#cam-v');if(!v||!v.videoWidth){toast('Kamera noch nicht bereit');return true}
+      const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+      const im=new Image();im.onload=()=>{setPhoto(im);toast('Foto aufgenommen')};im.src=c.toDataURL('image/jpeg',.92);
+    }},
+    {l:'Kamera wechseln',f:async()=>{camFacing=camFacing==='environment'?'user':'environment';try{await camStart()}catch(e){toast('Wechsel nicht möglich')}return true}}
+  ],camStop);
+  camStart().catch(e=>{camStop();$('#modal-root').innerHTML='';toast('Kein Kamerazugriff. Foto wird über die Kamera-App aufgenommen');$('#po-cam').click()});
+}
+
+let poseP=null,poseRes=null;
+function loadPose(){
+  if(poseP)return poseP;
+  poseP=new Promise((res,rej)=>{
+    const s=document.createElement('script');s.src='mediapipe/pose/pose.js';
+    s.onerror=()=>{poseP=null;rej(new Error('nofiles'))};
+    s.onload=async()=>{try{
+      const pose=new Pose({locateFile:f=>'mediapipe/pose/'+f});
+      pose.setOptions({modelComplexity:1,smoothLandmarks:false,enableSegmentation:false,minDetectionConfidence:.4});
+      pose.onResults(r=>{if(poseRes)poseRes(r)});
+      await pose.initialize();res(pose)
+    }catch(e){poseP=null;rej(e)}};
+    document.head.appendChild(s);
+  });
+  return poseP;
+}
+const LMS={L:{ear:7,sh:11,hip:23,knee:25,ank:27},R:{ear:8,sh:12,hip:24,knee:26,ank:28}};
+async function autoAnalyze(){
+  const im=pImgs[pView];
+  if(!im){toast('Zuerst ein Foto laden oder aufnehmen');return}
+  if(!window.__PWA){toast('Die automatische Analyse läuft nur in der installierten App');return}
+  const btn=$('#po-auto');btn.disabled=true;const old=btn.textContent;btn.textContent='Analysiere …';
+  try{
+    const pose=await loadPose();
+    const H=Math.round(PW*im.height/im.width),oc=document.createElement('canvas');oc.width=PW;oc.height=H;oc.getContext('2d').drawImage(im,0,0,PW,H);
+    const r=await new Promise(async(ok,fail)=>{poseRes=ok;const t=setTimeout(()=>fail(new Error('timeout')),30000);try{await pose.send({image:oc})}catch(e){clearTimeout(t);fail(e)}});
+    poseRes=null;
+    const lm=r&&r.poseLandmarks;
+    if(!lm){toast('Keine Person erkannt. Bitte ein Ganzkörperfoto verwenden.');return}
+    const pt=i=>[lm[i].x*PW/PW,lm[i].y*H/PW],vis=i=>lm[i].visibility==null?1:lm[i].visibility;
+    const st=pst(pView).pts;let set=[],low=0;
+    const put=(idx,p,v)=>{st[idx]=p;set.push(idx);if(v<.5)low++};
+    if(pView==='side'){
+      const sc=k=>Object.values(LMS[k]).reduce((a,i)=>a+vis(i),0);
+      const k=sc('L')>=sc('R')?'L':'R',M=LMS[k];
+      put(0,pt(M.ear),vis(M.ear));put(2,pt(M.sh),vis(M.sh));put(3,pt(M.hip),vis(M.hip));put(4,pt(M.knee),vis(M.knee));put(5,pt(M.ank),vis(M.ank));
+      S.f['po.face']=lm[0].x>lm[M.ear].x?'rechts':'links';
+      const sel=$('#i-po\\.face');if(sel)sel.value=S.f['po.face'];
+    }else{
+      const pair=(a,b,i1,i2)=>{const A=lm[a],B=lm[b],l=A.x<=B.x?[a,b]:[b,a];put(i1,pt(l[0]),vis(l[0]));put(i2,pt(l[1]),vis(l[1]))};
+      pair(7,8,0,1);pair(11,12,2,3);pair(23,24,4,5);pair(25,26,6,7);pair(27,28,8,9);
+      const mid=(a,b)=>[(lm[a].x+lm[b].x)/2*PW/PW,(lm[a].y+lm[b].y)/2*H/PW];
+      st[10]=pView==='front'?pt(0):mid(7,8);
+      const sm=mid(11,12),hm=mid(23,24);st[11]=[sm[0],sm[1]+.15*(hm[1]-sm[1])];
+      set.push(10,11);
+    }
+    save();haltungSec.api.next0();
+    haltungSec.api.redraw();
+    toast(low>2?'Erkennung unsicher: Punkte bitte genau prüfen':(pView==='side'?'Punkte gesetzt. C7 bitte von Hand setzen.':'Punkte gesetzt. Bitte prüfen und bei Bedarf ziehen.'));
+  }catch(e){
+    poseRes=null;
+    toast(e&&e.message==='nofiles'?'Analyse-Modell nicht gefunden (Ordner mediapipe fehlt)':'Analyse fehlgeschlagen: '+(e&&e.message||e));
+  }finally{btn.disabled=false;btn.textContent=old}
+}
+(function(){
+  const base=haltungSec.init;
+  haltungSec.init=function(){
+    base();
+    $('#po-snap').onclick=()=>$('#po-cam').click();
+    $('#po-cam').addEventListener('change',e=>{const f=e.target.files[0];if(f)fileToImage(f);e.target.value=''});
+    $('#po-live').onclick=openCamera;
+    $('#po-auto').onclick=autoAnalyze;
+    $('#po-del').onclick=()=>{if(!pImgs[pView]){toast('Kein Foto in dieser Ansicht');return}
+      delete pImgs[pView];if(S.id){delete pStored[S.id+':'+pView];idbDel(S.id+':'+pView).catch(()=>{})}haltungSec.api.redraw();toast('Foto entfernt')};
+    if(!window.__PWA)$('#po-auto-msg').textContent='Die automatische Analyse und die Live-Kamera stehen in der installierten App zur Verfügung. Hier kannst du Fotos laden und Punkte von Hand setzen.';
+  };
+})();
+/* ---------- PDF-Erzeugung (jsPDF) ---------- */
+const pdfSan=s=>String(s).replace(/[–—‑]/g,'-').replace(/[„“”«»]/g,'"').replace(/[‘’]/g,"'").replace(/•/g,'-').replace(/₂/g,'2').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/→/g,'->').replace(/✓/g,'ja').replace(/[^\u0009\u000a -ÿ]/g,'?');
+async function buildPdf(){
+  if(!(window.jspdf&&window.jspdf.jsPDF))throw new Error('PDF-Bibliothek nicht geladen');
+  const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'});
+  const M=15,PWm=210,CW=PWm-2*M,PH=297,BOT=PH-18;
+  let y=M;
+  const need=h=>{if(y+h>BOT){doc.addPage();y=M}};
+  const F=S.f,T=(t,s,st)=>{doc.setFont('helvetica',st||'normal');doc.setFontSize(s)};
+  /* Kopf */
+  T('',20,'bold');doc.setTextColor(15,107,115);doc.text('Physiotherapeutischer Befund',M,y+6);y+=11;
+  doc.setTextColor(0);T('',11,'bold');
+  const fd=d=>d?new Date(d).toLocaleDateString('de-AT'):'';
+  doc.text(pdfSan(F['b.pat']||'Ohne Namen'),M,y);
+  T('',10,'normal');
+  const sub=[F['b.geb']?'geb. '+fd(F['b.geb']):'',F['b.datum']?'Befund vom '+fd(F['b.datum']):'',F['b.thera']?'Therapeut/in: '+F['b.thera']:''].filter(Boolean).join('  |  ');
+  if(sub){y+=5;doc.text(pdfSan(sub),M,y)}
+  y+=4;doc.setDrawColor(15,107,115);doc.setLineWidth(.6);doc.line(M,y,PWm-M,y);y+=6;
+  /* Abschnitte */
+  const imgsBC=()=>{
+    if(!(S.bc.front.length+S.bc.back.length))return;
+    LIGHT=true;bcRedraw();
+    const urls=$$('canvas[data-bc]').map(c=>{const t=document.createElement('canvas');t.width=c.width;t.height=c.height;const x=t.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,t.width,t.height);x.drawImage(c,0,0);return t.toDataURL('image/jpeg',.9)});
+    LIGHT=false;bcRedraw();
+    const w=52,h=w*1260/600;need(h+20);y+=2;
+    T('',10,'bold');doc.setTextColor(15,107,115);doc.text('BODYCHART',M,y);doc.setTextColor(0);y+=3;
+    doc.addImage(urls[0],'JPEG',M,y,w,h);doc.addImage(urls[1],'JPEG',M+w+6,y,w,h);
+    T('',8.5,'normal');doc.setTextColor(70);
+    doc.text(doc.splitTextToSize('Farben: rot = Schmerz, blau = Kribbeln, grün = Taubheit, orange = Brennen, violett = Sonstiges. Nummern verweisen auf die Tabelle der Symptombereiche.',CW-2*w-18),M+2*w+14,y+6);
+    doc.setTextColor(0);y+=h+5;
+  };
+  const imgsPosture=()=>{
+    const hs=haltungSec;if(!hs.api)return;
+    const items=[];
+    LIGHT=true;
+    Object.keys(PV).forEach(v=>{
+      if(!pImgs[v]||!Object.keys(pst(v).pts).length)return;
+      const c=document.createElement('canvas');hs.api.render(v,c);
+      items.push({v,url:c.toDataURL('image/jpeg',.85),r:c.height/c.width});
+    });
+    LIGHT=false;
+    if(!items.length)return;
+    const w=Math.min(80,(CW-8)/items.length),h=Math.max(...items.map(i=>w*i.r));
+    need(h+14);y+=4;T('',10,'bold');doc.setTextColor(15,107,115);doc.text('HALTUNGSFOTOS',M,y);doc.setTextColor(0);y+=3;
+    items.forEach((it,i)=>{doc.addImage(it.url,'JPEG',M+i*(w+4),y,w,w*it.r);T('',8,'normal');doc.text(pdfSan(PV[it.v].n),M+i*(w+4),y+w*it.r+3.5)});
+    y+=h+8;
+  };
+  const SECS_OUT=[];
+  SECS.forEach(s=>{const el=$('#sec-'+s.id);if(!el||el.hidden)return;
+    let lines=dumpSection(el);if(s.extra)lines=lines.concat(s.extra());
+    lines=lines.filter(l=>!/^Bodychart: \d+ Striche/.test(l));
+    const hasImg=(s.id==='anamnese'&&S.bc.front.length+S.bc.back.length>0)||(s.id==='haltung'&&Object.keys(PV).some(v=>pImgs[v]&&Object.keys(pst(v).pts).length));
+    if(!lines.length&&!hasImg)return;
+    SECS_OUT.push({s,lines});
+  });
+  SECS_OUT.forEach(({s,lines})=>{
+    need(20);
+    doc.setFillColor(217,238,238);doc.rect(M,y-4.5,CW,7,'F');
+    T('',12,'bold');doc.setTextColor(15,107,115);doc.text(pdfSan(s.name),M+2,y);doc.setTextColor(0);y+=7;
+    lines.forEach(raw=>{
+      const sh=raw.startsWith('\n'),line=pdfSan(raw.replace(/^\n/,''));
+      if(sh){need(12);y+=2;T('',9.5,'bold');doc.text(line,M,y);doc.setDrawColor(190);doc.setLineWidth(.2);doc.line(M,y+1.2,PWm-M,y+1.2);y+=5.5;return}
+      if(/^\s+- /.test(line)||/^\s+•/.test(line)||raw.startsWith('  ')){
+        const t=line.replace(/^\s+/,'');T('',9,'normal');const ls=doc.splitTextToSize(t,CW-6);
+        need(ls.length*4+1);ls.forEach((l,i)=>{doc.text(l,M+4,y);y+=4});y+=.5;return}
+      const k=line.indexOf(': ');
+      if(k<0){T('',9.5,'normal');const ls=doc.splitTextToSize(line,CW);need(ls.length*4.6);ls.forEach(l=>{doc.text(l,M,y);y+=4.6});return}
+      const lab=line.slice(0,k+1),val=line.slice(k+2);
+      T('',9,'bold');const lw=doc.getTextWidth(lab+' ');
+      if(lw<48&&val.length<90&&!val.includes('\n')){
+        need(5);doc.text(lab,M,y);T('',9.5,'normal');const ls=doc.splitTextToSize(val,CW-lw);
+        need(ls.length*4.6);ls.forEach((l,i)=>{doc.text(l,M+lw,y);y+=4.6});y+=.8;
+      }else{
+        T('',9.5,'normal');const ls=doc.splitTextToSize(val,CW-4);need(4+ls.length*4.6);
+        T('',8.5,'bold');doc.setTextColor(70);doc.text(lab,M,y);doc.setTextColor(0);y+=4.2;
+        T('',9.5,'normal');ls.forEach(l=>{doc.text(l,M+3,y);y+=4.6});y+=1.2;
+      }
+    });
+    if(s.id==='anamnese')imgsBC();
+    if(s.id==='haltung')imgsPosture();
+    y+=4;
+  });
+  /* Fuß */
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){doc.setPage(i);T('',8,'normal');doc.setTextColor(110);doc.text('Befund Studio  |  '+pdfSan(F['b.pat']||''),M,PH-8);doc.text('Seite '+i+' von '+n,PWm-M,PH-8,{align:'right'});doc.setTextColor(0)}
+  return doc.output('blob');
+}
 /* ---------- Beurteilung und Plan (immer) ---------- */
 const astRows=[1,2,3,4,5,6].map(i=>`<tr>${TI('as.'+i+'.p','text','z. B. Flexion 90°, Gehen 10 min')}${TS('as.'+i+'.t',['subjektiv','physisch'])}${TI('as.'+i+'.v','text','Ausgangswert')}${TI('as.'+i+'.n','text','nach Behandlung')}${TI('as.'+i+'.f','text','nächste Sitzung')}</tr>`);
 reg('plan','Beurteilung und Plan',true,'immer enthalten',`
@@ -643,7 +887,7 @@ function start(){
 }
 $('#b-export').onclick=()=>{
   const txt=buildText();
-  modal('Befund als Text',`<p class="hint">Enthält alle sichtbaren Bereiche mit ausgefüllten Feldern.</p><textarea id="m-ta" readonly></textarea>`,[{l:'Kopieren',pri:true,f:()=>{copyText(txt,$('#m-ta'));return true}}]);
+  modal('Befund als Text',`<p class="hint">Enthält alle sichtbaren Bereiche mit ausgefüllten Feldern.</p><textarea id="m-ta" readonly></textarea>`,[{l:'Als TXT-Datei speichern',pri:true,f:async()=>{await saveFile(fname('Befund','txt'),txt);return true}},{l:'Kopieren',f:()=>{copyText(txt,$('#m-ta'));return true}}]);
   $('#m-ta').value=txt;
 };
 
@@ -658,28 +902,38 @@ $('#b-lib').onclick=()=>{
     if(o){const id=o.dataset.open;S=JSON.parse(JSON.stringify(lib[id].s));S.id=id;S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};saveNow();location.reload()}
     if(d){if(!d.dataset.arm){d.dataset.arm=1;d.textContent='Wirklich löschen?';return}
       const id=d.dataset.del,l=libGet();delete l[id];try{localStorage.setItem(LIB,JSON.stringify(l))}catch(x){}
-      if(S.id===id)S.id=null;d.closest('.lrow').remove();toast('Befund gelöscht')}
+      idbDelPrefix(id+':');if(S.id===id)S.id=null;d.closest('.lrow').remove();toast('Befund gelöscht')}
   };
 };
 
 /* ---------- Sicherung aller Befunde ---------- */
-$('#b-backup').onclick=()=>{
-  saveNow();
-  const json=JSON.stringify({app:'befund-studio',lib:libGet(),cur:S});
-  modal('Sicherung',`<p class="hint">Enthält alle gespeicherten Befunde. Text kopieren und an einem sicheren Ort ablegen. Zum Wiederherstellen eine Sicherung einfügen. Vorhandene Befunde bleiben erhalten.</p><textarea id="m-ta"></textarea>`,[
-    {l:'Kopieren',pri:true,f:()=>{copyText($('#m-ta').value,$('#m-ta'));return true}},
-    {l:'Wiederherstellen',f:()=>{try{
+$('#b-backup').onclick=async()=>{
+  saveNow();await photosFlush();
+  let photos={};try{photos=await idbAll()}catch(e){}
+  const json=JSON.stringify({app:'befund-studio',lib:libGet(),cur:S,photos});
+  modal('Sicherung',`<p class="hint">Die Sicherung enthält alle gespeicherten Befunde samt Haltungsfotos und wird als TXT-Datei gespeichert. Zum Wiederherstellen die Datei auswählen. Vorhandene Befunde bleiben erhalten.</p><div class="f" style="margin-bottom:10px"><label for="m-file">Sicherungsdatei auswählen</label><input id="m-file" type="file" accept=".txt,.json,text/plain"></div><textarea id="m-ta" placeholder="Inhalt der Sicherung"></textarea>`,[
+    {l:'Sicherung als Datei speichern',pri:true,f:async()=>{await saveFile('Befund-Studio-Sicherung_'+new Date().toISOString().slice(0,10)+'.txt',$('#m-ta').value);return true}},
+    {l:'Wiederherstellen',f:async()=>{try{
       const o=JSON.parse($('#m-ta').value);
+      if(o&&o.photos)for(const k of Object.keys(o.photos))await idbPut(k,o.photos[k]);
       if(o&&o.lib){const l=libGet();Object.assign(l,o.lib);localStorage.setItem(LIB,JSON.stringify(l));if(o.cur&&o.cur.f)S=o.cur}
       else if(o&&o.f)S=o;else throw 0;
       S.bc=S.bc||{front:[],back:[]};S.pos=S.pos||{};S.mods=S.mods||{};saveNow();location.reload();return
     }catch(e){toast('Sicherung nicht lesbar');return true}}}]);
   $('#m-ta').value=json;
+  $('#m-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$('#m-ta').value=String(rd.result);toast('Datei eingelesen, jetzt „Wiederherstellen“ wählen')};rd.readAsText(f)};
 };
-let newArm=false;
-$('#b-new').onclick=e=>{
-  if(!newArm){newArm=true;e.target.textContent='Neuen Befund beginnen?';setTimeout(()=>{newArm=false;e.target.textContent='Neuer Befund'},3500);return}
-  saveNow();S=fresh();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(x){}location.reload();
+$('#b-new').onclick=()=>{
+  saveNow();
+  const loose=!S.id&&Object.keys(S.f).some(k=>S.f[k]);
+  modal('Neuen Patienten anlegen',`<p class="hint">Der Befund wird sofort gespeichert und danach automatisch aktualisiert. Den aktuell geöffneten Befund findest du unter „Gespeicherte Befunde“.${loose?' Der aktuelle Befund hat noch keinen Namen und wird nicht gespeichert.':''}</p>
+  <div class="grid"><div class="f"><label for="np-name">Patient/in (Kürzel oder Übungsname)</label><input id="np-name" type="text" autocomplete="off"></div><div class="f"><label for="np-date">Befunddatum</label><input id="np-date" type="date"></div></div>`,[
+    {l:'Speichern und beginnen',pri:true,f:()=>{
+      const n=$('#np-name').value.trim();if(!n){toast('Bitte einen Namen oder ein Kürzel eingeben');$('#np-name').focus();return true}
+      S=fresh();S.f['b.pat']=n;S.f['b.datum']=$('#np-date').value||new Date().toISOString().slice(0,10);S.id='b'+Date.now().toString(36);
+      saveNow();location.reload();return true}}]);
+  $('#np-date').value=new Date().toISOString().slice(0,10);$('#np-name').focus();
+  $('#np-name').addEventListener('keydown',e=>{if(e.key==='Enter')$('#m-btns .btn.pri').click()});
 };
 
 /* ---------- Drucken / PDF ---------- */
@@ -744,14 +998,19 @@ function printPrep(){
 }
 $('#b-print').onclick=()=>{
   saveNow();printPrep();
-  toast('Druckdialog: „Als PDF speichern“ wählen, um eine PDF-Datei zu erhalten');
   setTimeout(()=>{try{window.print()}catch(e){toast('Drucken ist hier nicht verfügbar')}},250);
+};
+$('#b-pdf').onclick=async e=>{
+  const b=e.currentTarget,old=b.textContent;b.disabled=true;b.textContent='Erstelle PDF …';saveNow();
+  try{const blob=await buildPdf();await saveFile(fname('Befund','pdf'),blob)}
+  catch(err){LIGHT=false;bcRedraw();toast('PDF konnte nicht erstellt werden: '+(err&&err.message||err))}
+  finally{b.disabled=false;b.textContent=old}
 };
 addEventListener('afterprint',printClean);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(printClean,600)});
 document.addEventListener('pointerdown',()=>{if(printing)printClean()},true);
 try{if(window.__PWA){if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js')}}catch(e){}
-start();
+start();photosLoad();stamp();
 </script>
 
 </body></html>
